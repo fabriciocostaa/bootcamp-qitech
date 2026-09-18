@@ -4,3 +4,5 @@ from models.account_status import AccountStatus
 from models.account import Account
 from models.account_status_event import AccountStatusEvent
 from models.client_status_event import ClientStatusEvent
+from models.transaction_type import TransactionType
+from models.account_transaction import AccountTransaction

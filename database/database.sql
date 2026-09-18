@@ -39,7 +39,7 @@ INSERT INTO account_status (enumerator) VALUES
 CREATE TABLE account(
     id                              SERIAL PRIMARY KEY,
     account_key                     CHAR(36) NOT NULL,
-    balance                         NUMERIC(15, 2) NOT NULL DEFAULT(0),
+    balance                         NUMERIC(15, 2) NOT NULL DEFAULT(0) CHECK (balance >= 0),
     client_id                       INTEGER NOT NULL REFERENCES client(id),
     status_id                       INTEGER NOT NULL REFERENCES account_status(id),
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
@@ -59,5 +59,23 @@ CREATE TABLE client_status_event(
     client_id                       INTEGER NOT NULL REFERENCES client(id),
     status_id                       INTEGER NOT NULL REFERENCES client_status(id),
     event_datetime                  TIMESTAMP NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
+);
+
+CREATE TABLE transaction_type(
+    id                              SERIAL PRIMARY KEY,
+    enumerator                      VARCHAR(50) NOT NULL,
+    UNIQUE(enumerator)
+);
+
+INSERT INTO transaction_type (enumerator) VALUES
+('deposit'),
+('withdraw');
+
+CREATE TABLE account_transaction(
+    id                              SERIAL PRIMARY KEY,
+    account_id                      INTEGER NOT NULL REFERENCES account(id),
+    type_id                         INTEGER NOT NULL REFERENCES transaction_type(id),
+    amount                          NUMERIC(15,2) NOT NULL,
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
 );
