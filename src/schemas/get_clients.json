@@ -1,5 +1,5 @@
 {
-  "title": "GetSampleEntities",
+  "title": "GetClients",
   "type": "object",
   "properties": {
     "limit": {
@@ -15,10 +15,9 @@
       "minItems": 1,
       "items": {
         "enum": [
-          "created",
           "pending",
-          "success",
-          "failed"
+          "approved",
+          "rejected"
         ]
       }
     },

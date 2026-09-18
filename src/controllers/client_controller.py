@@ -1,7 +1,7 @@
 from datetime import date
 
 from controllers.base_controller import BaseController
-from dtos import SampleEntityDTO
+from dtos import clientDTO
 from errors import (
     DuplicatedDocumentNumber,
     DuplicatedEmail,
@@ -12,8 +12,8 @@ from errors import (
     SampleEntityFinalStatus,
     UnderageSampleEntity,
 )
-from models import SampleEntity, SampleEntityStatus
-from repositories import SampleEntityRepository
+from models import Client, ClientStatus
+from repositories import ClientRepository, AccountRepository
 from utils.document_number import is_valid_cpf
 
 # A faixa de idade aceita. Abaixo do mínimo o cadastro é RECUSADO; acima
@@ -23,14 +23,15 @@ MINIMUM_AGE = 18
 MAXIMUM_AGE = 80
 
 
-class SampleEntityController(BaseController):
+class ClientController(BaseController):
     """As regras de negócio. Aqui mora o "pode" e o "não pode"."""
 
     def __init__(self) -> None:
         super().__init__(__name__)
-        self.sample_entity_repository = SampleEntityRepository(self.context)
+        self.client_repository = ClientRepository(self.context) 
+        self.account_repository = AccountRepository(self.context)
 
-    def create(self, sample_entity_data: dict) -> dict:
+    def create(self, client_data: dict) -> dict:
         """Confere quem está entrando, e só então cria.
 
         As quatro perguntas abaixo acontecem ANTES de qualquer escrita, e
@@ -40,19 +41,19 @@ class SampleEntityController(BaseController):
         mundo: se o número existe, se alguém já usou, que idade a pessoa
         tem hoje.
         """
-        self.logger.debug("Criando uma nova Sample Entity")
+        self.logger.debug("Criando uma nova Client")
 
-        document_number = sample_entity_data["document_number"]
-        email = sample_entity_data["email"]
-        birthdate = self._parse_birthdate(sample_entity_data["birthdate"])
+        document_number = client_data["document_number"]
+        email = client_data["email"]
+        birthdate = self._parse_birthdate(client_data["birthdate"])
 
         if not is_valid_cpf(document_number):
             raise InvalidDocumentNumber(document_number)
 
-        if self.sample_entity_repository.get_by_document_number(document_number) is not None:
+        if self.client_repository.get_by_document_number(document_number) is not None:
             raise DuplicatedDocumentNumber(document_number)
 
-        if self.sample_entity_repository.get_by_email(email) is not None:
+        if self.client_repository.get_by_email(email) is not None:
             raise DuplicatedEmail(email)
 
         age = self._age_in_years(birthdate)
@@ -60,33 +61,33 @@ class SampleEntityController(BaseController):
         if age < MINIMUM_AGE:
             raise UnderageSampleEntity(age, MINIMUM_AGE)
 
-        sample_entity = self.sample_entity_repository.create(sample_entity_data=sample_entity_data)
+        client = self.client_repository.create(client_data=client_data)
 
         # Passar da idade máxima não impede o cadastro: ele nasce em
         # "failed". É a diferença entre recusar o pedido e aceitá-lo com
         # outro desfecho — e as duas regras moram lado a lado de
         # propósito, pra que a diferença fique à vista.
         if age > MAXIMUM_AGE:
-            new_status = SampleEntityStatus.FAILED
+            new_status = ClientStatus.REJECTED
         else:
-            new_status = SampleEntityStatus.PENDING
+            new_status = ClientStatus.PENDING
 
-        self.sample_entity_repository.update_status(sample_entity, new_status)
+        self.client_repository.update_status(client, new_status)
 
-        sample_entity_dto = SampleEntityDTO.only_obj_key(sample_entity)
+        client_dto = clientDTO.only_obj_key(client)
         self.session.commit()
 
-        return sample_entity_dto
+        return client_dto
 
-    def get_by_key(self, sample_entity_key: str) -> dict:
-        self.logger.debug(f"Buscando a entidade de chave {sample_entity_key}")
+    def get_by_key(self, client_key: str) -> dict:
+        self.logger.debug(f"Buscando a entidade de chave {client_key}")
 
-        sample_entity = self.sample_entity_repository.get_by_key(sample_entity_key)
+        client = self.client_repository.get_by_key(client_key)
 
-        if sample_entity is None:
-            raise NotFoundSampleEntity(sample_entity_key)
+        if client is None:
+            raise NotFoundSampleEntity(client_key)
 
-        return SampleEntityDTO.obj_to_dict(sample_entity)
+        return clientDTO.obj_to_dict(client)
 
     def get_list(self, limit: int, offset: int, filters: dict) -> dict:
         """A pagina pedida, depois de conferir se o pedido faz sentido.
@@ -123,51 +124,55 @@ class SampleEntityController(BaseController):
                     f"birthdate_from ({birthdate_from}) is after birthdate_to ({birthdate_to})"
                 )
 
-        sample_entities_list = self.sample_entity_repository.list_page(limit, offset, filters)
+        client_list = self.client_repository.list_page(limit, offset, filters)
 
         # Pedimos um a mais que o limite só pra saber se existe próxima
         # página. Se veio o extra, ele não entra na resposta.
         is_last_page = True
-        if len(sample_entities_list) > limit:
+        if len(client_list) > limit:
             is_last_page = False
-            sample_entities_list = sample_entities_list[:-1]
+            client_list = client_list[:-1]
 
         return {
-            "sample_entities_list_dto": SampleEntityDTO.list_obj_to_list_dict(sample_entities_list),
+            "client_list_dto": clientDTO.list_obj_to_list_dict(client_list),
             "is_last_page": is_last_page,
         }
 
-    def update_status(self, sample_entity_key: str, new_status: str) -> dict:
-        sample_entity = self.sample_entity_repository.get_by_key(sample_entity_key)
+    def update_status(self, client_key: str, new_status: str) -> dict:
+        client = self.client_repository.get_by_key(client_key)
 
-        if sample_entity is None:
-            raise NotFoundSampleEntity(sample_entity_key)
+        if client is None:
+            raise NotFoundSampleEntity(client_key)
 
-        self._check_status_can_change(sample_entity, new_status)
+        self._check_status_can_change(client, new_status)
 
-        self.sample_entity_repository.update_status(sample_entity, new_status)
+        self.client_repository.update_status(client, new_status)
 
-        sample_entity_dto = SampleEntityDTO.only_obj_key(sample_entity)
+        #Aprovação de cadastro de cliente, cria conta com saldo 0
+        if new_status == ClientStatus.APPROVED:
+            self.account_repository.create(client)
+
+        client_dto = clientDTO.only_obj_key(client)
         self.session.commit()
 
-        return sample_entity_dto
+        return client_dto
 
-    def webhook_increment_counter(self, sample_entity_key: str) -> None:
-        self.logger.debug(f"Processando webhook da entidade {sample_entity_key}")
+    def webhook_increment_counter(self, client_key: str) -> None:
+        self.logger.debug(f"Processando webhook da entidade {client_key}")
 
-        sample_entity = self.sample_entity_repository.get_by_key(sample_entity_key)
+        client = self.client_repository.get_by_key(client_key)
 
-        if sample_entity is None:
-            raise NotFoundSampleEntity(sample_entity_key)
+        if client is None:
+            raise NotFoundSampleEntity(client_key)
 
-        self.sample_entity_repository.increment_counter(sample_entity)
+        self.client_repository.increment_counter(client)
 
         self.session.commit()
 
-    def _check_status_can_change(self, sample_entity: SampleEntity, new_status: str) -> None:
-        old_status = sample_entity.status.enumerator
+    def _check_status_can_change(self, client: Client, new_status: str) -> None:
+        old_status = client.status.enumerator
 
-        if old_status != SampleEntityStatus.PENDING:
+        if old_status != ClientStatus.PENDING:
             raise SampleEntityFinalStatus(old_status, new_status)
 
     def _parse_birthdate(self, raw_birthdate: str) -> date:

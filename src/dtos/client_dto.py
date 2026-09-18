@@ -1,13 +1,13 @@
 from copy import deepcopy
 from typing import List
 
-from models import SampleEntity
+from models import Client
 
 
-class SampleEntityDTO:
+class clientDTO:
     """Traduz o objeto do banco no JSON que a API devolve.
 
-    O repository entrega um `SampleEntity` — o espelho da tabela, com
+    O repository entrega um `client` — o espelho da tabela, com
     coluna JSON e chave estrangeira. Nada disso sai para o cliente: aqui
     esse objeto vira um dicionário simples, e é esse dicionário que o
     FastAPI transforma no JSON da resposta.
@@ -21,28 +21,35 @@ class SampleEntityDTO:
     """
 
     @staticmethod
-    def obj_to_dict(sample_entity: SampleEntity) -> dict:
+    def obj_to_dict(client: Client) -> dict:
         """A entidade INTEIRA, com a história de como ela chegou aqui.
 
         É o dossiê: quem abre UMA entidade quer saber por onde ela
         passou, não só onde ela está. Cada mudança de status deixou uma
-        linha em sample_entity_status_event, e é aqui que essas linhas
+        linha em client_status_event, e é aqui que essas linhas
         viram resposta.
         """
-        sample_entity_dto = SampleEntityDTO.obj_to_simplified_dict(sample_entity)
-        sample_entity_dto["status_events"] = []
+        client_dto = clientDTO.obj_to_simplified_dict(client)
+        client_dto["status_events"] = []
 
-        for status_event in sample_entity.status_events:
+        for status_event in client.status_events:
             status_event_dto = dict()
             status_event_dto["status"] = status_event.status.enumerator
             status_event_dto["event_datetime"] = status_event.event_datetime.isoformat()
+            client_dto["status_events"].append(status_event_dto)
 
-            sample_entity_dto["status_events"].append(status_event_dto)
+        client_dto["accounts"] = []
+        for account in client.accounts:
+            client_dto["accounts"].append({
+                "account_key": account.account_key,
+                "balance": str(account.balance),
+                "status": account.status.enumerator,
+            })
 
-        return sample_entity_dto
+        return client_dto
 
     @staticmethod
-    def obj_to_simplified_dict(sample_entity: SampleEntity) -> dict:
+    def obj_to_simplified_dict(client: Client) -> dict:
         """A entidade sem a trilha de status — o resumo.
 
         Existe por causa da LISTAGEM, e o motivo não é economizar
@@ -62,31 +69,30 @@ class SampleEntityDTO:
         # dicionário que vive dentro do objeto do banco, e as linhas
         # abaixo sujariam esse objeto — que o resto da requisição
         # ainda vai usar.
-        dto = deepcopy(sample_entity.sample_entity_data)
-        dto["sample_entity_key"] = sample_entity.sample_entity_key
-        dto["name"] = sample_entity.name
-        dto["email"] = sample_entity.email
-        dto["document_number"] = sample_entity.document_number
-        dto["birthdate"] = sample_entity.birthdate.isoformat()
-        dto["status"] = sample_entity.status.enumerator
-        dto["counter"] = sample_entity.counter
+        dto = dict()
+        dto["client_key"] = client.client_key
+        dto["name"] = client.name
+        dto["email"] = client.email
+        dto["document_number"] = client.document_number
+        dto["birthdate"] = client.birthdate.isoformat()
+        dto["status"] = client.status.enumerator
 
         return dto
 
     @staticmethod
-    def list_obj_to_list_dict(sample_entities_list: List[SampleEntity]) -> List[dict]:
+    def list_obj_to_list_dict(sample_entities_list: List[Client]) -> List[dict]:
         sample_entities_dict_list = []
 
-        for sample_entity in sample_entities_list:
+        for client in sample_entities_list:
             sample_entities_dict_list.append(
-                SampleEntityDTO.obj_to_simplified_dict(sample_entity)
+                clientDTO.obj_to_simplified_dict(client)
             )
 
         return sample_entities_dict_list
 
     @staticmethod
-    def only_obj_key(sample_entity: SampleEntity) -> dict:
+    def only_obj_key(client: Client) -> dict:
         dto = dict()
-        dto["sample_entity_key"] = sample_entity.sample_entity_key
+        dto["client_key"] = client.client_key
 
         return dto

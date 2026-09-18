@@ -1,12 +1,12 @@
 {
-  "title": "PutSampleEntity",
+  "title": "PutClient",
   "type": "object",
   "properties": {
     "status": {
       "type": "string",
       "enum": [
-        "success",
-        "failed"
+        "approved",
+        "rejected"
       ]
     }
   },

@@ -3,14 +3,14 @@ from fastapi import status as http_status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from controllers import SampleEntityController
+from controllers import ClientController
 from utils.schema_handler import SchemaHandler
 
 DEFAULT_LIMIT = 10
 DEFAULT_PAGE = 0
 
 
-class SampleEntityResource:
+class ClientResource:
     """A porta de entrada HTTP da Sample Entity.
 
     ────────────────────────────────────────────────────────────────
@@ -86,44 +86,44 @@ class SampleEntityResource:
     resposta estoura em runtime, e só naquele endpoint.
     """
 
-    @SchemaHandler.validate("post_sample_entity.json")
+    @SchemaHandler.validate("post_client.json")
     def on_post(self, payload: dict) -> JSONResponse:
         # Se o código chegou até aqui, o payload JÁ foi conferido contra
-        # o src/schemas/post_sample_entity.json. O resource não checa
+        # o src/schemas/post_client.json. O resource não checa
         # nada: ele só chama a regra de negócio.
-        controller = SampleEntityController()
-        sample_entity = controller.create(payload)
+        controller = ClientController()
+        client_entity = controller.create(payload)
 
         return JSONResponse(
-            content=jsonable_encoder(sample_entity),
+            content=jsonable_encoder(client_entity),
             status_code=http_status.HTTP_201_CREATED,
         )
 
-    def on_get_by_key(self, sample_entity_key: str) -> JSONResponse:
-        controller = SampleEntityController()
-        sample_entity = controller.get_by_key(sample_entity_key)
+    def on_get_by_key(self, client_key: str) -> JSONResponse:
+        controller = ClientController()
+        client = controller.get_by_key(client_key)
 
         return JSONResponse(
-            content=jsonable_encoder(sample_entity),
+            content=jsonable_encoder(client),
             status_code=http_status.HTTP_200_OK,
         )
 
-    @SchemaHandler.validate("put_sample_entity.json")
-    def on_put_by_key(self, sample_entity_key: str, payload: dict) -> JSONResponse:
-        controller = SampleEntityController()
-        sample_entity = controller.update_status(sample_entity_key, payload["status"])
+    @SchemaHandler.validate("put_client.json")
+    def on_put_by_key(self, client_key: str, payload: dict) -> JSONResponse:
+        controller = ClientController()
+        client = controller.update_status(client_key, payload["status"])
 
         return JSONResponse(
-            content=jsonable_encoder(sample_entity),
+            content=jsonable_encoder(client),
             status_code=http_status.HTTP_202_ACCEPTED,
         )
 
     def on_put_increment_counter(self, sample_entity_key: str) -> Response:
-        controller = SampleEntityController()
+        controller = ClientController()
         controller.webhook_increment_counter(sample_entity_key)
         return Response(status_code=http_status.HTTP_204_NO_CONTENT)
 
-    @SchemaHandler.validate_query_params("get_sample_entities.json")
+    @SchemaHandler.validate_query_params("get_clients.json")
     def on_get_list(self, request: Request) -> JSONResponse:
         """A pagina pedida, com os filtros que vierem na query string.
 
@@ -138,7 +138,7 @@ class SampleEntityResource:
         que fevereiro nao tem dia 30 — e quem recusa valor impossivel e
         o controller, nao o resource.
         """
-        controller = SampleEntityController()
+        controller = ClientController()
 
         query_params = request.query_params
 
@@ -158,7 +158,7 @@ class SampleEntityResource:
         }
 
         offset = page * limit
-        sample_entities_page = controller.get_list(limit, offset, filters)
+        client_page = controller.get_list(limit, offset, filters)
 
         # A paginação é assunto do endereço (?limit=&page=), não da
         # entidade: por isso quem monta o envelope da página é o
@@ -169,10 +169,10 @@ class SampleEntityResource:
         # vocabulário de HTTP. Empurrá-lo pro controller obrigaria a
         # regra de negócio a saber o que é uma página.
         page_envelope = {
-            "data": sample_entities_page["sample_entities_list_dto"],
+            "data": client_page["client_list_dto"],
             "limit": limit,
             "page": page,
-            "is_last_page": sample_entities_page["is_last_page"],
+            "is_last_page": client_page["is_last_page"],
         }
 
         return JSONResponse(

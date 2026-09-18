@@ -2,10 +2,9 @@ from datetime import date, datetime
 from uuid import uuid4
 
 from database import Context
-from models import SampleEntity, SampleEntityStatus, SampleEntityStatusEvent
+from models import Client, ClientStatus, ClientStatusEvent
 
-
-class SampleEntityRepository:
+class ClientRepository:
     """A camada que fala com o banco. Só aqui existe query.
 
     Nenhuma regra de negócio mora aqui: esta classe busca, guarda e
@@ -25,45 +24,41 @@ class SampleEntityRepository:
     def __init__(self, context: Context) -> None:
         self.session = context.db_session
 
-    def create(self, sample_entity_data: dict) -> SampleEntity:
-        sample_entity = SampleEntity()
+    def create(self, client_data: dict) -> Client:
+        client = Client()
 
-        sample_entity.sample_entity_data = {"hello": sample_entity_data["hello"]}
-        sample_entity.name = sample_entity_data["name"]
-        sample_entity.email = sample_entity_data["email"]
-        sample_entity.document_number = sample_entity_data["document_number"]
-        sample_entity.birthdate = date.fromisoformat(sample_entity_data["birthdate"])
-        sample_entity.sample_entity_key = str(uuid4())
-        sample_entity.counter = 0
-        sample_entity.status = self.get_status(SampleEntityStatus.CREATED)
+        client.client_key = str(uuid4())
+        client.status = self.get_status(ClientStatus.PENDING)
+        client.name = client_data["name"]
+        client.email = client_data["email"]
+        client.document_number = client_data["document_number"]
+        client.birthdate = date.fromisoformat(client_data["birthdate"])
 
-        self.session.add(sample_entity)
-        return sample_entity
+        self.session.add(client)
+        return client
 
-    def update_status(self, sample_entity: SampleEntity, new_status_enumerator: str) -> None:
+    def update_status(self, client: Client, new_status_enumerator: str) -> None:
         new_status = self.get_status(new_status_enumerator)
-        sample_entity.status = new_status
+        client.status = new_status
 
-        new_status_event = SampleEntityStatusEvent()
+        new_status_event = ClientStatusEvent()
         new_status_event.status = new_status
         new_status_event.event_datetime = datetime.now()
 
-        sample_entity.status_events.append(new_status_event)
+        client.status_events.append(new_status_event)
 
-    def increment_counter(self, sample_entity: SampleEntity) -> None:
-        sample_entity.counter = sample_entity.counter + 1
 
-    def get_by_key(self, sample_entity_key: str) -> SampleEntity:
-        return self.session.query(SampleEntity).filter(SampleEntity.sample_entity_key == sample_entity_key).first()
+    def get_by_key(self, client_key: str) -> Client:
+        return self.session.query(Client).filter(Client.client_key == client_key).first()
 
-    def get_by_document_number(self, document_number: str) -> SampleEntity:
-        return self.session.query(SampleEntity).filter(SampleEntity.document_number == document_number).first()
+    def get_by_document_number(self, document_number: str) -> Client:
+        return self.session.query(Client).filter(Client.document_number == document_number).first()
 
-    def get_by_email(self, email: str) -> SampleEntity:
-        return self.session.query(SampleEntity).filter(SampleEntity.email == email).first()
+    def get_by_email(self, email: str) -> Client:
+        return self.session.query(Client).filter(Client.email == email).first()
 
-    def get_status(self, enumerator: str) -> SampleEntityStatus:
-        return self.session.query(SampleEntityStatus).filter(SampleEntityStatus.enumerator == enumerator).one()
+    def get_status(self, enumerator: str) -> ClientStatus:
+        return self.session.query(ClientStatus).filter(ClientStatus.enumerator == enumerator).one()
 
     def list_page(self, limit: int, offset: int, filters: dict) -> list:
         """A pagina, estreitada por quantos filtros vierem preenchidos.
@@ -87,32 +82,32 @@ class SampleEntityRepository:
         instante — e ai `created_at` sozinho ainda deixaria a ordem em
         aberto.
         """
-        query = self.session.query(SampleEntity)
+        query = self.session.query(Client)
 
         status_enumerators = filters.get("status_enumerators")
         if status_enumerators:
-            query = query.join(SampleEntity.status).filter(SampleEntityStatus.enumerator.in_(status_enumerators))
+            query = query.join(Client.status).filter(ClientStatus.enumerator.in_(status_enumerators))
 
         name = filters.get("name")
         if name is not None:
-            query = query.filter(SampleEntity.name.ilike(f"%{name}%"))
+            query = query.filter(Client.name.ilike(f"%{name}%"))
 
         email = filters.get("email")
         if email is not None:
-            query = query.filter(SampleEntity.email == email)
+            query = query.filter(Client.email == email)
 
         document_number = filters.get("document_number")
         if document_number is not None:
-            query = query.filter(SampleEntity.document_number == document_number)
+            query = query.filter(Client.document_number == document_number)
 
         birthdate_from = filters.get("birthdate_from")
         if birthdate_from is not None:
-            query = query.filter(SampleEntity.birthdate >= birthdate_from)
+            query = query.filter(Client.birthdate >= birthdate_from)
 
         birthdate_to = filters.get("birthdate_to")
         if birthdate_to is not None:
-            query = query.filter(SampleEntity.birthdate <= birthdate_to)
+            query = query.filter(Client.birthdate <= birthdate_to)
 
-        query = query.order_by(SampleEntity.created_at.desc(), SampleEntity.id.desc())
+        query = query.order_by(Client.created_at.desc(), Client.id.desc())
 
         return query.limit(limit + 1).offset(offset).all()

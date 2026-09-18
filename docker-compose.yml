@@ -65,15 +65,15 @@ services:
   db:
     build: ./database/.
     environment:
-      POSTGRES_USER: bootcamp
-      POSTGRES_PASSWORD: bootcamp
-      POSTGRES_DB: bootcamp
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       # Mesma ideia: DB_PORT=5433 no .env se a 5432 estiver ocupada.
       - "${DB_PORT:-5432}:5432"
     healthcheck:
       # A API so sobe depois que o banco responder de verdade.
-      test: ["CMD-SHELL", "pg_isready -U bootcamp -d bootcamp"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 3s
       timeout: 3s
       retries: 20

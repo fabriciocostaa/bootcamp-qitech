@@ -1,12 +1,7 @@
 {
-  "title": "PostSampleEntity",
+  "title": "PostClient",
   "type": "object",
   "properties": {
-    "hello": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 255
-    },
     "name": {
       "type": "string",
       "minLength": 1,
@@ -27,7 +22,6 @@
     }
   },
   "required": [
-    "hello",
     "name",
     "email",
     "document_number",
