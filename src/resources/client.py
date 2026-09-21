@@ -92,10 +92,10 @@ class ClientResource:
         # o src/schemas/post_client.json. O resource não checa
         # nada: ele só chama a regra de negócio.
         controller = ClientController()
-        client_entity = controller.create(payload)
+        client = controller.create(payload)
 
         return JSONResponse(
-            content=jsonable_encoder(client_entity),
+            content=jsonable_encoder(client),
             status_code=http_status.HTTP_201_CREATED,
         )
 

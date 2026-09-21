@@ -39,7 +39,7 @@ INSERT INTO account_status (enumerator) VALUES
 CREATE TABLE account(
     id                              SERIAL PRIMARY KEY,
     account_key                     CHAR(36) NOT NULL,
-    balance                         NUMERIC(15, 2) NOT NULL DEFAULT(0) CHECK (balance >= 0),
+    balance                         BIGINT NOT NULL DEFAULT(0) CHECK (balance >= 0),
     client_id                       INTEGER NOT NULL REFERENCES client(id),
     status_id                       INTEGER NOT NULL REFERENCES account_status(id),
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),

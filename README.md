@@ -666,6 +666,10 @@ Todo erro da API responde no mesmo formato, com um código próprio:
 | `QIT001005` | já existe um cadastro com esse e-mail            |
 | `QIT001006` | a pessoa é menor de idade                        |
 | `QIT001007` | a data de nascimento não existe no calendário    |
+| `QIT002001` | Não foi encontrado a conta                       |
+| `QIT002002` | Essa conta não está ativa                        |
+| `QIT002003` | Saldo insuficiente                               |
+| `QIT002004` | O valor informado não é válido                   |
 
 Um código estável vale mais que uma mensagem bonita: quem integra com a
 API programa em cima do código, não do texto.

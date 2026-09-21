@@ -42,7 +42,7 @@ class clientDTO:
         for account in client.accounts:
             client_dto["accounts"].append({
                 "account_key": account.account_key,
-                "balance": str(account.balance),
+                "balance": f"{account.balance / 100:.2f}", 
                 "status": account.status.enumerator,
             })
 

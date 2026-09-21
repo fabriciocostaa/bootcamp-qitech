@@ -1,4 +1,4 @@
-from sqlalchemy import CHAR, Column, Numeric, DateTime, ForeignKey, Integer, UniqueConstraint, func
+from sqlalchemy import CHAR, Column, BigInteger, DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.orm import relationship
 from models.base import Base
 from models import Client, AccountStatus
@@ -9,7 +9,7 @@ class Account(Base):
 
     id = Column(Integer, primary_key=True)
     account_key = Column(CHAR(36), nullable=False)
-    balance = Column(Numeric(15,2), nullable=False, default=0)
+    balance = Column(BigInteger, nullable=False, default=0)
     client_id = Column(Integer, ForeignKey(Client.id), nullable=False)
     status_id = Column(Integer, ForeignKey(AccountStatus.id), nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())

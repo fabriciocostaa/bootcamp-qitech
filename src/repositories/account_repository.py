@@ -1,5 +1,5 @@
 from database import Context
-from models import Client, Account, AccountStatus, AccountStatusEvent
+from models import Client, Account, AccountStatus, AccountStatusEvent, TransactionType, AccountTransaction
 from datetime import datetime
 from uuid import uuid4
 
@@ -30,3 +30,31 @@ class AccountRepository:
 
     def get_status(self, enumerator: str) -> AccountStatus:
         return self.session.query(AccountStatus).filter(AccountStatus.enumerator == enumerator).one()
+
+    def get_by_key_for_update(self, account_key: str) -> Account:
+        return (
+            self.session.query(Account)
+            .filter(Account.account_key == account_key)
+            .with_for_update()
+            .one_or_none()
+        )
+
+    def register_transaction(self, account: Account, type_enumerator:str, amount: int) -> None:
+        transaction_type = (
+            self.session.query(TransactionType)
+            .filter(TransactionType.enumerator == type_enumerator)
+            .one()
+        )
+
+        transaction = AccountTransaction()
+        transaction.account = account
+        transaction.type = transaction_type
+        transaction.amount = amount
+
+        if type_enumerator == TransactionType.DEPOSIT:
+            account.balance += amount
+
+        elif type_enumerator == TransactionType.WITHDRAW:
+            account.balance -= amount
+
+        self.session.add(transaction)

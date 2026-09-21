@@ -99,3 +99,54 @@ class InvalidBirthdate(QIException):
         description = f"The birthdate {birthdate} is not a real date."
         translation = "A data de nascimento informada não existe."
         super().__init__(title, self.code, http_status, description, translation)
+
+class NotFoundAccount(QIException):
+    code = "QIT002001"
+
+    def __init__(self, account_key) -> None:
+        title = "Account not Found"
+        http_status = 404
+        description = f"Account with key {account_key} was not found."
+        translation = f"A conta com chave {account_key} não foi encontrada."
+        super().__init__(title, self.code, http_status, description, translation)
+
+
+class AccountNotActive(QIException):
+    """A conta existe, mas não está em estado de receber movimentação."""
+
+    code = "QIT002002"
+
+    def __init__(self, account_key) -> None:
+        title = "Account is not active"
+        http_status = 409
+        description = f"Account with key {account_key} is not active."
+        translation = f"Essa conta com chave {account_key} não está ativa."
+        super().__init__(title, self.code, http_status, description, translation)
+
+
+class InsufficientBalance(QIException):
+    """Formato certo, valor possível — só não cabe no saldo atual.
+
+    422, mesma lógica do InvalidDocumentNumber: não é "não entendi o
+    pedido", é "entendi, e não pode ser atendido do jeito que está".
+    """
+
+    code = "QIT002003"
+
+    def __init__(self, account_key, amount, balance) -> None:
+        title = "Insufficient Balance"
+        http_status = 422
+        description = f"Account {account_key} has balance {balance} and cannot withdraw {amount}."
+        translation = f"Conta {account_key} tem saldo {balance} e não pode realizar o saque de {amount}."
+        super().__init__(title, self.code, http_status, description, translation)
+
+
+class InvalidAmount(QIException):
+    code = "QIT002004"
+
+    def __init__(self, amount) -> None:
+        title = "Invalid Amount"
+        http_status = 422
+        description = f"The amount {amount} is not valid."
+        translation = f"O valor {amount} informado não é válido."
+        super().__init__(title, self.code, http_status, description, translation)
