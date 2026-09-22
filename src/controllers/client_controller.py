@@ -157,17 +157,6 @@ class ClientController(BaseController):
 
         return client_dto
 
-    def webhook_increment_counter(self, client_key: str) -> None:
-        self.logger.debug(f"Processando webhook da entidade {client_key}")
-
-        client = self.client_repository.get_by_key(client_key)
-
-        if client is None:
-            raise NotFoundSampleEntity(client_key)
-
-        self.client_repository.increment_counter(client)
-
-        self.session.commit()
 
     def _check_status_can_change(self, client: Client, new_status: str) -> None:
         old_status = client.status.enumerator

@@ -118,10 +118,6 @@ class ClientResource:
             status_code=http_status.HTTP_202_ACCEPTED,
         )
 
-    def on_put_increment_counter(self, sample_entity_key: str) -> Response:
-        controller = ClientController()
-        controller.webhook_increment_counter(sample_entity_key)
-        return Response(status_code=http_status.HTTP_204_NO_CONTENT)
 
     @SchemaHandler.validate_query_params("get_clients.json")
     def on_get_list(self, request: Request) -> JSONResponse:
