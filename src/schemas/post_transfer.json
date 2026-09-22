@@ -1,0 +1,9 @@
+{
+    "type": "object",
+    "properties": {
+        "account_to_key": { "type": "string" },
+        "amount": { "type": "number", "minimum": 1 }
+    },
+    "required": ["account_to_key", "amount"],
+    "additionalProperties": false
+}

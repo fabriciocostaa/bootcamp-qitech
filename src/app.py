@@ -168,6 +168,12 @@ def create_app() -> FastAPI:
     methods=["POST"],
     )
 
+    application.add_api_route(
+        "/account/{account_key}/transfer",
+        account_resource.on_post_transfer,
+        methods=["POST"],
+    )
+
     register_error_handlers(application)
 
     return application

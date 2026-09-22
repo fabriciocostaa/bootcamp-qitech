@@ -70,12 +70,15 @@ CREATE TABLE transaction_type(
 
 INSERT INTO transaction_type (enumerator) VALUES
 ('deposit'),
-('withdraw');
+('withdraw'),
+('transfer_in'),
+('transfer_out');
 
 CREATE TABLE account_transaction(
     id                              SERIAL PRIMARY KEY,
     account_id                      INTEGER NOT NULL REFERENCES account(id),
     type_id                         INTEGER NOT NULL REFERENCES transaction_type(id),
-    amount                          NUMERIC(15,2) NOT NULL,
-    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
+    amount                          BIGINT NOT NULL CHECK (amount > 0),
+    created_at                      TIMESTAMP NOT NULL DEFAULT NOW(),
+    related_transaction_id          INTEGER REFERENCES account_transaction(id)
 );

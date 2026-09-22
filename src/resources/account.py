@@ -28,3 +28,14 @@ class AccountResource:
             content=jsonable_encoder(account_dto),
             status_code=http_status.HTTP_200_OK,
         )
+
+    @SchemaHandler.validate("post_transfer.json")
+    def on_post_transfer(self, account_key: str, payload: dict) -> JSONResponse:
+        controller = AccountController()
+
+        account_dto = controller.transfer(account_key, payload["account_to_key"], payload["amount"])
+
+        return JSONResponse(
+            content=jsonable_encoder(account_dto),
+            status_code=http_status.HTTP_200_OK,
+        )

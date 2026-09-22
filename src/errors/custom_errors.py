@@ -150,3 +150,13 @@ class InvalidAmount(QIException):
         description = f"The amount {amount} is not valid."
         translation = f"O valor {amount} informado não é válido."
         super().__init__(title, self.code, http_status, description, translation)
+
+class SameAccountTransfer(QIException):
+    code = "QIT002005"
+
+    def __init__(self, account_key) -> None:
+        title = "Same Account Transfer"
+        http_status = 422
+        description = f"Cannot transfer to the same account {account_key}."
+        translation = f"Não é possível transferir para a mesma conta {account_key}."
+        super().__init__(title, self.code, http_status, description, translation)
