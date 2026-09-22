@@ -133,11 +133,11 @@ class InsufficientBalance(QIException):
 
     code = "QIT002003"
 
-    def __init__(self, account_key, amount, balance) -> None:
+    def __init__(self, account_key, balance) -> None:
         title = "Insufficient Balance"
         http_status = 422
-        description = f"Account {account_key} has balance {balance} and cannot withdraw {amount}."
-        translation = f"Conta {account_key} tem saldo {balance} e não pode realizar o saque de {amount}."
+        description = f"Account {account_key} has only {balance} available."
+        translation = f"Conta {account_key} tem apenas {balance} disponível."
         super().__init__(title, self.code, http_status, description, translation)
 
 

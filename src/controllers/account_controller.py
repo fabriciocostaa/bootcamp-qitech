@@ -35,6 +35,9 @@ class AccountController(BaseController):
         if amount <= 0:
             raise InvalidAmount(amount)
 
+        if account.balance < amount:
+            raise InsufficientBalance(account_key, account.balance)
+
         if account.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_key)
 
@@ -65,7 +68,7 @@ class AccountController(BaseController):
             raise AccountNotActive(account_to_key)
 
         if account_from.balance < amount:
-                raise InsufficientBalance(account_from_key, amount, account_from.balance)
+                raise InsufficientBalance(account_from_key, account_from.balance)
 
         self.account_repository.register_transfer(account_from, account_to, amount)
         self.session.commit()
