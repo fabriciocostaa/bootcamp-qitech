@@ -89,3 +89,11 @@ class AccountRepository:
         self.session.flush()  # garante que as duas transações sejam persistidas antes de continuar
 
         transaction_out.related_transaction_id = transaction_in.id # Linka as duas transações
+
+    def get_extract(self, account: Account) -> list[AccountTransaction]:
+        return (
+            self.session.query(AccountTransaction)
+            .filter(AccountTransaction.account_id == account.id)
+            .order_by(AccountTransaction.created_at.desc())
+            .all()
+        )

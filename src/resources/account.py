@@ -39,3 +39,13 @@ class AccountResource:
             content=jsonable_encoder(account_dto),
             status_code=http_status.HTTP_200_OK,
         )
+
+    def on_get_extract(self, account_key: str) -> JSONResponse:
+        controller = AccountController()
+
+        transfers_dto = controller.extract(account_key)
+
+        return JSONResponse(
+            content=jsonable_encoder(transfers_dto),
+            status_code=http_status.HTTP_200_OK,
+        )

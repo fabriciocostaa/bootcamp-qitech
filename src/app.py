@@ -174,6 +174,14 @@ def create_app() -> FastAPI:
         methods=["POST"],
     )
 
+    application.add_api_route(
+        "/account/{account_key}/extract",
+        account_resource.on_get_extract,
+        methods=["GET"],
+    )
+
+    application.add_api_route
+
     register_error_handlers(application)
 
     return application

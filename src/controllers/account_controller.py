@@ -70,3 +70,12 @@ class AccountController(BaseController):
         self.account_repository.register_transfer(account_from, account_to, amount)
         self.session.commit()
         return accountDTO.only_obj_key(account_from)
+
+    def extract(self, account_key: str):
+        account = self.account_repository.get_by_key_for_update(account_key)
+
+        if account is None:
+            raise NotFoundAccount(account_key)
+
+        extract = self.account_repository.get_extract(account)
+        return accountDTO.list_extract_to_list_dict(extract)
