@@ -1,7 +1,8 @@
 from controllers.base_controller import BaseController
 from repositories.account_repository import AccountRepository
-from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer
+from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate
 from models import AccountStatus, TransactionType
+from datetime import date
 from dtos.account_dto import accountDTO
 
 class AccountController(BaseController):
@@ -74,11 +75,42 @@ class AccountController(BaseController):
         self.session.commit()
         return accountDTO.only_obj_key(account_from)
 
-    def extract(self, account_key: str):
-        account = self.account_repository.get_by_key_for_update(account_key)
+    def extract(self, account_key: str, limit: int, offset: int, filters: dict)-> list:
+        start_date = filters.get("start_date")
+        end_date = filters.get("end_date")
+
+        if start_date is not None:
+            start_date = self._parse_date(start_date)
+            filters["start_date"] = start_date
+
+        if end_date is not None:
+            end_date = self._parse_date(end_date)
+            filters["end_date"] = end_date
+
+        if start_date is not None and end_date is not None:
+            if start_date > end_date:
+                raise InvalidDate(start_date, end_date)
+        
+        account = self.account_repository.get_by_key(account_key)
 
         if account is None:
             raise NotFoundAccount(account_key)
+        
+        extract = self.account_repository.list_page(account, limit + 1, offset, filters)
 
-        extract = self.account_repository.get_extract(account)
-        return accountDTO.list_extract_to_list_dict(extract)
+        is_last_page = True
+        if len(extract) > limit:
+            is_last_page = False
+            extract = extract[:-1]
+
+        return {
+            "account_extract": accountDTO.list_extract_to_list_dict(extract),
+            "is_last_page": is_last_page,
+        }
+
+    def _parse_date(self, raw_date: str):
+        """Converte a data, ou recusa com 422 em vez de 500."""
+        try:
+            return date.fromisoformat(raw_date)
+        except ValueError:
+            raise InvalidDate(f"Invalid date format: {raw_date}. Expected format: YYYY-MM-DD")

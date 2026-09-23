@@ -1,8 +1,9 @@
-from fastapi import status as http_status
+from fastapi import status as http_status, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from controllers import AccountController
+from resources.client import DEFAULT_LIMIT, DEFAULT_PAGE
 from utils.schema_handler import SchemaHandler
 
 class AccountResource:
@@ -40,12 +41,31 @@ class AccountResource:
             status_code=http_status.HTTP_200_OK,
         )
 
-    def on_get_extract(self, account_key: str) -> JSONResponse:
+    @SchemaHandler.validate_query_params("get_extract.json")
+    def on_get_extract(self, account_key: str, request: Request) -> JSONResponse:
         controller = AccountController()
 
-        transfers_dto = controller.extract(account_key)
+        query_params = request.query_params
+
+        limit = int(query_params.get("limit", DEFAULT_LIMIT))
+        page = int(query_params.get("page", DEFAULT_PAGE))
+
+        filters = {
+            "start_date": query_params.get("start_date"),
+            "end_date": query_params.get("end_date"),
+        }
+
+        offset = page * limit
+        extract_result = controller.extract(account_key, limit, offset, filters)
+
+        page_envelope = {
+            "data": extract_result["account_extract"],
+            "limit": limit,
+            "page": page,
+            "is_last_page": extract_result["is_last_page"],
+        }
 
         return JSONResponse(
-            content=jsonable_encoder(transfers_dto),
+            content=jsonable_encoder(page_envelope),
             status_code=http_status.HTTP_200_OK,
         )

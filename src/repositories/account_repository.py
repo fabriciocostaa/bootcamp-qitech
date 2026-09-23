@@ -39,6 +39,13 @@ class AccountRepository:
             .one_or_none()
         )
 
+    def get_by_key(self, account_key: str) -> Account:
+        return(
+            self.session.query(Account)
+            .filter(Account.account_key == account_key)
+            .first()
+        )
+
     def get_transaction_type(self, enumerator: str) -> TransactionType:
             return self.session.query(TransactionType).filter(TransactionType.enumerator == enumerator).one()
 
@@ -90,10 +97,16 @@ class AccountRepository:
 
         transaction_out.related_transaction_id = transaction_in.id # Linka as duas transações
 
-    def get_extract(self, account: Account) -> list[AccountTransaction]:
-        return (
-            self.session.query(AccountTransaction)
-            .filter(AccountTransaction.account_id == account.id)
-            .order_by(AccountTransaction.created_at.desc())
-            .all()
-        )
+    def list_page(self, account: Account, limit: int, offset: int, filters: dict) -> list[AccountTransaction]:
+        query = self.session.query(AccountTransaction).filter(AccountTransaction.account == account)
+
+        start_date = filters.get("start_date")
+        if start_date is not None:
+            query = query.filter(AccountTransaction.created_at >= start_date)
+
+        end_date = filters.get("end_date")
+        if end_date is not None:
+            query = query.filter(AccountTransaction.created_at <= end_date)
+
+        query = query.order_by(AccountTransaction.created_at.desc())
+        return query.offset(offset).limit(limit).all()

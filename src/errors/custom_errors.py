@@ -160,3 +160,13 @@ class SameAccountTransfer(QIException):
         description = f"Cannot transfer to the same account {account_key}."
         translation = f"Não é possível transferir para a mesma conta {account_key}."
         super().__init__(title, self.code, http_status, description, translation)
+
+class InvalidDate(QIException):
+    code = "QIT002006"
+
+    def __init__(self, start_date, end_date) -> None:
+        title = "Invalid Date"
+        http_status = 422
+        description = f"start_date ({start_date}) is after end_date ({end_date})"
+        translation = f"A data de início ({start_date}) é posterior à data de término ({end_date})."
+        super().__init__(title, self.code, http_status, description, translation)
