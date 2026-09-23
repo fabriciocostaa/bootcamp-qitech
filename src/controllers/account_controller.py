@@ -19,6 +19,9 @@ class AccountController(BaseController):
         if amount <= 0:
             raise InvalidAmount(amount)
 
+        if not isinstance(amount, int):
+            raise InvalidAmount(amount)
+
         if account.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_key)
 
@@ -36,6 +39,9 @@ class AccountController(BaseController):
         if amount <= 0:
             raise InvalidAmount(amount)
 
+        if not isinstance(amount, int):
+            raise InvalidAmount(amount)
+
         if account.balance < amount:
             raise InsufficientBalance(account_key, account.balance)
 
@@ -49,6 +55,9 @@ class AccountController(BaseController):
 
     def transfer(self, account_from_key: str, account_to_key: str, amount: float):
         if amount <= 0:
+            raise InvalidAmount(amount)
+
+        if not isinstance(amount, int):
             raise InvalidAmount(amount)
 
         if account_from_key == account_to_key:
