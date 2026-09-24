@@ -17,6 +17,7 @@ CREATE TABLE client(
     name                            VARCHAR(255) NOT NULL,
     email                           VARCHAR(255) NOT NULL,
     document_number                 CHAR(14) NOT NULL,
+    password_hash                   VARCHAR(255) NOT NULL,
     birthdate                       DATE NOT NULL,
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
     UNIQUE(client_key),

@@ -1,7 +1,7 @@
 from controllers.base_controller import BaseController
 from repositories.account_repository import AccountRepository
-from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate
-from models import AccountStatus, TransactionType
+from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate, AccountNotOwnedByClient
+from models import AccountStatus, TransactionType, Account
 from datetime import date
 from dtos.account_dto import accountDTO
 
@@ -10,6 +10,10 @@ class AccountController(BaseController):
         super().__init__(__name__)
         self.account_repository = AccountRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
 
+    def _check_account_ownership(self, account: Account) -> None:
+        if account.client.client_key != self.context.authenticated_client_key:
+            raise AccountNotOwnedByClient(account.account_key)
+    
     def deposit(self, account_key: str, amount: float):
         account = self.account_repository.get_by_key_for_update(account_key)
 
@@ -35,6 +39,8 @@ class AccountController(BaseController):
 
         if account is None:
             raise NotFoundAccount(account_key)
+
+        self._check_account_ownership(account)
         
         if amount <= 0:
             raise InvalidAmount(amount)
@@ -67,6 +73,8 @@ class AccountController(BaseController):
 
         if account_from is None:
             raise NotFoundAccount(account_from_key)
+
+        self._check_account_ownership(account_from)
 
         if account_to is None:
             raise NotFoundAccount(account_to_key)

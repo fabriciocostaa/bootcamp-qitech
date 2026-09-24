@@ -1,5 +1,6 @@
 from datetime import date, datetime
 from uuid import uuid4
+import bcrypt
 
 from database import Context
 from models import Client, ClientStatus, ClientStatusEvent
@@ -32,6 +33,9 @@ class ClientRepository:
         client.name = client_data["name"]
         client.email = client_data["email"]
         client.document_number = client_data["document_number"]
+        client.password_hash = bcrypt.hashpw(
+            client_data["password"].encode(), bcrypt.gensalt()
+        ).decode()
         client.birthdate = date.fromisoformat(client_data["birthdate"])
 
         self.session.add(client)
@@ -47,6 +51,8 @@ class ClientRepository:
 
         client.status_events.append(new_status_event)
 
+    def check_password(self, client: Client, password: str) -> bool:
+        return bcrypt.checkpw(password.encode(), client.password_hash.encode())
 
     def get_by_key(self, client_key: str) -> Client:
         return self.session.query(Client).filter(Client.client_key == client_key).first()

@@ -11,6 +11,9 @@ SCHEMA_PATH = os.path.join(SERVICE_ROOT, "schemas")
 APP_ENV = os.environ.get("APP_ENV", "local")
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "bootcamp-api")
 
+JWT_SECRET = os.environ.get("JWT_SECRET")
+JWT_EXPIRATION_MINUTES = int(os.environ.get("JWT_EXPIRATION_MINUTES", "60"))
+
 DATABASE_URL = os.environ.get("DATABASE_URL")
 INTERNAL_TOKEN = os.environ.get("INTERNAL_TOKEN")
 
@@ -34,6 +37,12 @@ BANKSLIP_API_TIMEOUT = int(os.environ.get("BANKSLIP_API_TIMEOUT", "5"))
 BYPASS_ENDPOINTS = [
     "/",
     "/health_check",
+]
+
+# constants.py — as rotas que não pedem login de cliente
+AUTH_BYPASS_ENDPOINTS = [
+    "/auth/login",
+    "/client"
 ]
 
 REQUIRED_VARIABLES = ["DATABASE_URL", "INTERNAL_TOKEN"]

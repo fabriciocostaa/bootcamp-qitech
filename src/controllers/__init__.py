@@ -1,2 +1,3 @@
 from controllers.client_controller import ClientController
 from controllers.account_controller import AccountController
+from controllers.auth_controller import AuthController

@@ -142,6 +142,7 @@ class Context:
 
     def __init__(self) -> None:
         self.db_session: Optional[Session] = None
+        self.authenticated_client_key = None
 
     def get_or_create_session(self) -> Session:
         if self.db_session is None:

@@ -170,3 +170,53 @@ class InvalidDate(QIException):
         description = f"start_date ({start_date}) is after end_date ({end_date})"
         translation = f"A data de início ({start_date}) é posterior à data de término ({end_date})."
         super().__init__(title, self.code, http_status, description, translation)
+
+class InvalidCredentials(QIException):
+    code = "QIT003001"
+
+    def __init__(self) -> None:
+        title = "Invalid Credentials"
+        http_status = 401
+        description = "Document number or password is incorrect."
+        translation = "CPF ou senha incorretos."
+        super().__init__(title, self.code, http_status, description, translation)
+
+class UnauthorizedException(QIException):
+    code = "QIT003002"
+
+    def __init__(self) -> None:
+        title = "Unauthorized"
+        http_status = 401
+        description = "Authentication required."
+        translation = "É necessário estar autenticado."
+        super().__init__(title, self.code, http_status, description, translation)
+
+class TokenExpiredException(QIException):
+    code = "QIT003003"
+
+    def __init__(self) -> None:
+        title = "Expired Token"
+        http_status = 401
+        description = "The token has expired."
+        translation = "O token expirou."
+        super().__init__(title, self.code, http_status, description, translation)
+
+class InvalidToken(QIException):
+    code = "QIT003004"
+
+    def __init__(self) -> None:
+        title = "Invalid Token"
+        http_status = 401
+        description = "The token is invalid."
+        translation = "O token não é válido."
+        super().__init__(title, self.code, http_status, description, translation)
+
+class AccountNotOwnedByClient(QIException):
+    code = "QIT003005"
+
+    def __init__(self) -> None:
+        title = "Account Not Owned By Client"
+        http_status = 401
+        description = "The specified account does not belong to the client."
+        translation = "Essa conta específica não pertence ao Cliente."
+        super().__init__(title, self.code, http_status, description, translation)

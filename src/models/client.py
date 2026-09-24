@@ -1,4 +1,4 @@
-from sqlalchemy import CHAR, Column, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import CHAR, Column, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint, func, VARCHAR
 from sqlalchemy.orm import relationship
 from models.base import Base
 from models import ClientStatus
@@ -13,6 +13,7 @@ class Client(Base):
     name = Column(String(255), nullable=False)
     email = Column(String(255), nullable=False)
     document_number = Column(CHAR(14), nullable=False)
+    password_hash = Column(VARCHAR(255), nullable=False)
     birthdate = Column(Date, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
