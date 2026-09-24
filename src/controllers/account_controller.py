@@ -110,6 +110,8 @@ class AccountController(BaseController):
         
         account = self.account_repository.get_by_key(account_key)
 
+        self._check_account_ownership(account)
+
         if account is None:
             raise NotFoundAccount(account_key)
         
