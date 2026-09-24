@@ -12,7 +12,7 @@ class AccountController(BaseController):
 
     def _check_account_ownership(self, account: Account) -> None:
         if account.client.client_key != self.context.authenticated_client_key:
-            raise AccountNotOwnedByClient(account.account_key)
+            raise AccountNotOwnedByClient()
     
     def deposit(self, account_key: str, amount: float):
         account = self.account_repository.get_by_key_for_update(account_key)
