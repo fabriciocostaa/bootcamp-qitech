@@ -110,11 +110,10 @@ class AccountController(BaseController):
         
         account = self.account_repository.get_by_key(account_key)
 
-        self._check_account_ownership(account)
-
         if account is None:
             raise NotFoundAccount(account_key)
         
+        self._check_account_ownership(account)
         extract = self.account_repository.list_page(account, limit + 1, offset, filters)
 
         is_last_page = True

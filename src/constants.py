@@ -42,7 +42,8 @@ BYPASS_ENDPOINTS = [
 # constants.py — as rotas que não pedem login de cliente
 AUTH_BYPASS_ENDPOINTS = [
     "/auth/login",
-    "/client"
+    "/client",
+    "/account/{account_key}/deposit"
 ]
 
 REQUIRED_VARIABLES = ["DATABASE_URL", "INTERNAL_TOKEN"]
