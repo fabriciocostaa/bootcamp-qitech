@@ -27,7 +27,7 @@ def qi_exception_to_response(exception: QIException) -> JSONResponse:
         "title": exception.title,
         "description": exception.description,
         "translation": exception.translation,
-        "code": exception.code,
+        "code" : exception.code
     }
     return JSONResponse(status_code=exception.http_status, content=body)
 

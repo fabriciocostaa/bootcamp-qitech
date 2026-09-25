@@ -220,3 +220,13 @@ class AccountNotOwnedByClient(QIException):
         description = "The specified account does not belong to the client."
         translation = "Essa conta específica não pertence ao Cliente."
         super().__init__(title, self.code, http_status, description, translation)
+
+class OperatorRequired(QIException):
+    code = "QIT003006"
+
+    def __init__(self) -> None:
+        title = "Operator Required"
+        http_status = 403
+        description = "This operation requires an operator token."
+        translation = "Essa operação exige um token de operador."
+        super().__init__(title, self.code, http_status, description, translation)

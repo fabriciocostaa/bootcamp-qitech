@@ -11,6 +11,7 @@ from errors import (
     NotFoundSampleEntity,
     SampleEntityFinalStatus,
     UnderageSampleEntity,
+    AccountNotOwnedByClient
 )
 from models import Client, ClientStatus
 from repositories import ClientRepository, AccountRepository
@@ -30,6 +31,10 @@ class ClientController(BaseController):
         super().__init__(__name__)
         self.client_repository = ClientRepository(self.context) 
         self.account_repository = AccountRepository(self.context)
+
+    def _check_client_ownership(self, client) -> None:
+        if client.client_key != self.context.authenticated_client_key:
+            raise AccountNotOwnedByClient()
 
     def create(self, client_data: dict) -> dict:
         """Confere quem está entrando, e só então cria.
@@ -86,6 +91,12 @@ class ClientController(BaseController):
 
         if client is None:
             raise NotFoundSampleEntity(client_key)
+
+        is_owner = client.client_key == self.context.authenticated_client_key
+        is_operator = self.context.authenticated_operator_key is not None
+
+        if not is_owner and not is_operator:
+            raise AccountNotOwnedByClient(client_key)
 
         return clientDTO.obj_to_dict(client)
 

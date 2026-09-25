@@ -2,7 +2,7 @@ from abc import ABCMeta
 
 from database import get_context
 from utils.logger import get_logger
-
+from errors import OperatorRequired
 
 class BaseController(metaclass=ABCMeta):
     """O que todo controller tem em comum: a conexão com o banco e o log.
@@ -22,3 +22,7 @@ class BaseController(metaclass=ABCMeta):
         self.context = get_context()
         self.session = self.context.get_or_create_session()
         self.logger = get_logger(class_name)
+
+    def require_operator(self) -> None:
+        if self.context.authenticated_operator_key is None:
+            raise OperatorRequired()

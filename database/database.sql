@@ -83,3 +83,15 @@ CREATE TABLE account_transaction(
     created_at                      TIMESTAMP NOT NULL DEFAULT NOW(),
     related_transaction_id          INTEGER REFERENCES account_transaction(id)
 );
+
+CREATE TABLE operator(
+    id                              SERIAL PRIMARY KEY,
+    operator_key                    CHAR(36) NOT NULL,
+    name                            VARCHAR(255) NOT NULL,
+    email                           VARCHAR(255) NOT NULL,
+    document_number                 CHAR(14) NOT NULL,
+    password_hash                   VARCHAR(255) NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(operator_key),
+    UNIQUE(email)
+)

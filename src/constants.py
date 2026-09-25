@@ -43,7 +43,6 @@ BYPASS_ENDPOINTS = [
 AUTH_BYPASS_ENDPOINTS = [
     "/auth/login",
     "/client",
-    "/account/{account_key}/deposit"
 ]
 
 REQUIRED_VARIABLES = ["DATABASE_URL", "INTERNAL_TOKEN"]

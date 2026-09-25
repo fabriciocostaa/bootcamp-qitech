@@ -9,7 +9,17 @@ class AuthResource:
     @SchemaHandler.validate("post_login.json")
     def on_post_login(self, payload: dict) -> JSONResponse:
         controller = AuthController()
-        token_dto = controller.login(payload["document_number"], payload["password"])
+        token_dto = controller.login_client(payload["document_number"], payload["password"])
+
+        return JSONResponse(
+            content=jsonable_encoder(token_dto),
+            status_code=http_status.HTTP_200_OK
+        )
+
+    @SchemaHandler.validate("post_operator_login.json")
+    def on_post_operator_login(self, payload: dict) -> JSONResponse:
+        controller = AuthController()
+        token_dto = controller.login_operator(payload["document_number"], payload["password"])
 
         return JSONResponse(
             content=jsonable_encoder(token_dto),
