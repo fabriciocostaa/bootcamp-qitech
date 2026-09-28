@@ -44,7 +44,6 @@ AUTH_BYPASS_ENDPOINTS = [
     "/auth/login",
     "/client",
     "/auth/operator/login",
-    "/clients"
 ]
 
 REQUIRED_VARIABLES = ["DATABASE_URL", "INTERNAL_TOKEN"]
