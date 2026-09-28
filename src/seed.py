@@ -1,41 +1,42 @@
-# seed.py
-import sys
 import os
+import bcrypt
 
-# Define a raiz de busca
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
+from database import get_context, open_context, clear_context
+from models import Operator
 
-# Tenta importar com o padrão do Docker primeiro; se falhar, tenta com 'src' (Local)
-try:
-    from repositories.operator_repository import OperatorRepository
-    from database import get_context
-except ModuleNotFoundError:
-    try:
-        from src.repositories.operator_repository import OperatorRepository
-        from src.database import get_context
-    except ModuleNotFoundError as e:
-        print("❌ Erro crítico: Não foi possível localizar os módulos do projeto.")
-        raise e
+def seed_admin():
+    document_number = os.environ.get("ADMIN_DOCUMENT_NUMBER")
+    password = os.environ.get("ADMIN_INITIAL_PASSWORD")
 
-def create_initial_admin():
-    context = get_context()
-    repository = OperatorRepository(context)
-    
-    email_admin = "admin@seu-sistema.com"
-    
-    if repository.get_by_email(email_admin):
-        print(f"❌ Erro: O operador '{email_admin}' já existe no banco de dados!")
+    if not document_number or not password:
+        print("ADMIN_DOCUMENT_NUMBER / ADMIN_INITIAL_PASSWORD não definidos")
         return
-        
-    repository.create_operator(
-        email="admin@banco-UFABC.com",
-        name="Fabricio da Costa",
-        document_number = "509.246.798-32",
-        password="adminadmin"
-    )
 
-    print(f"🚀 Sucesso: Único Admin ({email_admin}) criado com sucesso!")
+    context = open_context()
+    session = context.get_or_create_session()
+
+    try:
+        existing = session.query(Operator).filter(Operator.document_number == document_number).first()
+        if existing is not None:
+            print(f"Admin {document_number} já existe - nada a fazer")
+            return
+
+        from uuid import uuid4
+
+        operator = Operator()
+        operator.operator_key = str(uuid4())
+        operator.name = "Admin"
+        operator.email = "admin@example.com"
+        operator.document_number = document_number
+        operator.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+        session.add(operator)
+        session.commit()
+        print(f"Admin criado com sucesso")
+
+    finally:
+        session.close()
+        clear_context()
 
 if __name__ == "__main__":
-    create_initial_admin()
+    seed_admin()

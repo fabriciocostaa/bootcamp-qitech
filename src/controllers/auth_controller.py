@@ -5,6 +5,7 @@ from controllers.base_controller import BaseController
 from repositories import ClientRepository, OperatorRepository
 from constants import JWT_SECRET, JWT_EXPIRATION_MINUTES
 from errors import InvalidCredentials
+from dtos import OperatorDTO
 
 class AuthController(BaseController):
     def __init__(self) -> None:
@@ -38,4 +39,4 @@ class AuthController(BaseController):
 
         token = jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
-        return {"token": token}
+        return OperatorDTO.only_obj_token(token)

@@ -20,7 +20,7 @@ class OperatorRepository:
 
     def get_by_document_number(self, document_number: str) -> Operator:
         return(
-            self.session.query(Operator).filter(Operator.document_number == document_number)
+            self.session.query(Operator).filter(Operator.document_number == document_number).first()
         )
     
     def check_password(self, operator: Operator, password: str) -> bool:

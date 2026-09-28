@@ -11,6 +11,7 @@ from errors import (
     NotFoundSampleEntity,
     SampleEntityFinalStatus,
     UnderageSampleEntity,
+    OperatorRequired,
     AccountNotOwnedByClient
 )
 from models import Client, ClientStatus
@@ -31,10 +32,6 @@ class ClientController(BaseController):
         super().__init__(__name__)
         self.client_repository = ClientRepository(self.context) 
         self.account_repository = AccountRepository(self.context)
-
-    def _check_client_ownership(self, client) -> None:
-        if client.client_key != self.context.authenticated_client_key:
-            raise AccountNotOwnedByClient()
 
     def create(self, client_data: dict) -> dict:
         """Confere quem está entrando, e só então cria.
@@ -118,6 +115,7 @@ class ClientController(BaseController):
         src/schemas/get_sample_entities.json. O que sobrou e o que
         nenhum schema sabe fazer: comparar dois campos ENTRE SI.
         """
+        self.require_operator()        
         birthdate_from = filters.get("birthdate_from")
         birthdate_to = filters.get("birthdate_to")
 

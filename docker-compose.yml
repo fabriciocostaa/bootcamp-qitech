@@ -34,6 +34,8 @@ services:
       SERVICE_NAME: ${SERVICE_NAME:-bootcamp-api}
       # A senha que protege os endpoints internos. O padrao vale pra
       # estudar; num sistema de verdade, isso nunca teria valor padrao.
+      ADMIN_DOCUMENT_NUMBER: ${ADMIN_DOCUMENT_NUMBER}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-default_token}
       JWT_SECRET: ${JWT_SECRET}
       # A API de boletos (assunto do sabado 4). Variavel que nao esta
