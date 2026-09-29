@@ -7,3 +7,4 @@ from models.client_status_event import ClientStatusEvent
 from models.transaction_type import TransactionType
 from models.account_transaction import AccountTransaction
 from models.operator import Operator
+from models.idempotency_key import IdempotencyKey
