@@ -1,8 +1,11 @@
 from abc import ABCMeta
 
+import hashlib
+import json
 from database import get_context
 from utils.logger import get_logger
-from errors import OperatorRequired
+from errors import OperatorRequired, IdempotencyKeyConflict
+from repositories.idempotency_repository import IdempotencyRepository
 
 class BaseController(metaclass=ABCMeta):
     """O que todo controller tem em comum: a conexão com o banco e o log.
@@ -22,7 +25,26 @@ class BaseController(metaclass=ABCMeta):
         self.context = get_context()
         self.session = self.context.get_or_create_session()
         self.logger = get_logger(class_name)
+        self.idempotency_repository = IdempotencyRepository(self.context)
 
     def require_operator(self) -> None:
         if self.context.authenticated_operator_key is None:
             raise OperatorRequired()
+
+    def _hash_request(self, **fields) -> str:
+        raw = json.dumps(fields, sort_keys=True, default=str)
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+    def _check_idempotency(self, idempotency_key: str, endpoint: str, request_hash: str):
+        if idempotency_key is None:
+            return None
+
+        existing = self.idempotency_repository.get_by_key(idempotency_key, endpoint)
+
+        if existing is None:
+            return None
+
+        if existing.request_hash != request_hash:
+            raise IdempotencyKeyConflict(idempotency_key)
+
+        return existing.response_body

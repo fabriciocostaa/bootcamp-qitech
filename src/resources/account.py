@@ -9,10 +9,11 @@ from utils.schema_handler import SchemaHandler
 class AccountResource:
 
     @SchemaHandler.validate("post_deposit.json")
-    def on_post_deposit(self, account_key:str, payload:dict) -> JSONResponse:
+    def on_post_deposit(self, account_key:str, payload:dict, request: Request) -> JSONResponse:
         controller = AccountController()
 
-        account_dto = controller.deposit(account_key, payload["amount"])
+        idempotency_key = request.headers.get("Idempotency-Key")
+        account_dto = controller.deposit(account_key, payload["amount"], idempotency_key)
 
         return JSONResponse(
             content=jsonable_encoder(account_dto),
@@ -20,10 +21,11 @@ class AccountResource:
         )
 
     @SchemaHandler.validate("post_withdraw.json")
-    def on_post_withdraw(self, account_key: str, payload: dict) -> JSONResponse:
+    def on_post_withdraw(self, account_key: str, payload: dict, request: Request) -> JSONResponse:
         controller = AccountController()
 
-        account_dto = controller.withdraw(account_key, payload["amount"])
+        idempotency_key = request.headers.get("Idempotency-Key")
+        account_dto = controller.withdraw(account_key, payload["amount"], idempotency_key)
 
         return JSONResponse(
             content=jsonable_encoder(account_dto),
@@ -31,10 +33,11 @@ class AccountResource:
         )
 
     @SchemaHandler.validate("post_transfer.json")
-    def on_post_transfer(self, account_key: str, payload: dict) -> JSONResponse:
+    def on_post_transfer(self, account_key: str, payload: dict, request: Request) -> JSONResponse:
         controller = AccountController()
 
-        account_dto = controller.transfer(account_key, payload["account_to_key"], payload["amount"])
+        idempotency_key = request.headers.get("Idempotency-Key")
+        account_dto = controller.transfer(account_key, payload["account_to_key"], payload["amount"], idempotency_key)
 
         return JSONResponse(
             content=jsonable_encoder(account_dto),

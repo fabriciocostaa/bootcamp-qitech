@@ -230,3 +230,13 @@ class OperatorRequired(QIException):
         description = "This operation requires an operator token."
         translation = "Essa operação exige um token de operador."
         super().__init__(title, self.code, http_status, description, translation)
+
+class IdempotencyKeyConflict(QIException):
+    code = "QIT003007"
+
+    def __init__(self, idempotency_key: str) -> None:
+        title = "Idempotency Key Conflict"
+        http_status = 409
+        description = f"Idempotency key {idempotency_key} was already used with a different request."
+        translation = f"Essa chave de idempotência {idempotency_key} já foi usada em uma requisição diferente."
+        super().__init__(title, self.code, http_status, description, translation)

@@ -85,6 +85,16 @@ CREATE TABLE account_transaction(
     related_transaction_id          INTEGER REFERENCES account_transaction(id)
 );
 
+CREATE TABLE idempotency_key(
+    id                              SERIAL PRIMARY KEY,
+    idempotency_key                 VARCHAR(255) NOT NULL,
+    endpoint                        VARCHAR(255) NOT NULL,
+    request_hash                    VARCHAR(64) NOT NULL,
+    response_body                   JSONB NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(idempotency_key, endpoint)
+);
+
 CREATE TABLE operator(
     id                              SERIAL PRIMARY KEY,
     operator_key                    CHAR(36) NOT NULL,
@@ -95,4 +105,4 @@ CREATE TABLE operator(
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
     UNIQUE(operator_key),
     UNIQUE(email)
-)
+);
