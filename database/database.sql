@@ -80,6 +80,7 @@ CREATE TABLE account_transaction(
     account_id                      INTEGER NOT NULL REFERENCES account(id),
     type_id                         INTEGER NOT NULL REFERENCES transaction_type(id),
     amount                          BIGINT NOT NULL CHECK (amount > 0),
+    tax                             BIGINT NOT NULL CHECK (tax >= 0),
     created_at                      TIMESTAMP NOT NULL DEFAULT NOW(),
     related_transaction_id          INTEGER REFERENCES account_transaction(id)
 );

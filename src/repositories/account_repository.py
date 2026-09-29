@@ -56,6 +56,7 @@ class AccountRepository:
         transaction.account = account
         transaction.type = transaction_type
         transaction.amount = amount
+        transaction.tax = 0
 
         if type_enumerator == TransactionType.DEPOSIT:
             account.balance += amount
@@ -77,11 +78,13 @@ class AccountRepository:
     def register_transfer(self, account_from: Account, account_to: Account, amount: int) -> None:
         transfer_in_type = self.get_transaction_type(TransactionType.TRANSFER_IN)
         transfer_out_type = self.get_transaction_type(TransactionType.TRANSFER_OUT)
+        tax = amount * 0.02 #tarifa de 2%
 
         transaction_out = AccountTransaction()
         transaction_out.account = account_from
         transaction_out.type = transfer_out_type
         transaction_out.amount = amount
+        transaction_out.tax = 0 #transacao de quem faz nao possui tarifa
         account_from.balance -= amount
         self.session.add(transaction_out)
         self.session.flush()  # precisa do id antes de linkar a outra ponta
@@ -89,9 +92,10 @@ class AccountRepository:
         transaction_in = AccountTransaction()
         transaction_in.account = account_to
         transaction_in.type = transfer_in_type
-        transaction_in.amount = amount
+        transaction_in.amount = amount - tax #tarifa de 2%
+        transaction_in.tax = tax
         transaction_in.related_transaction_id = transaction_out.id 
-        account_to.balance += amount
+        account_to.balance += (amount - tax)
         self.session.add(transaction_in)
         self.session.flush()  # garante que as duas transações sejam persistidas antes de continuar
 
