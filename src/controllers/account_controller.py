@@ -135,10 +135,13 @@ class AccountController(BaseController):
         if account_to.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_to_key)
 
-        if account_from.balance < amount:
+        tax = int(amount * 0.02)
+        total_debited = amount + tax
+
+        if account_from.balance < total_debited:
                 raise InsufficientBalance(account_from_key, account_from.balance)
 
-        self.account_repository.register_transfer(account_from, account_to, amount)
+        self.account_repository.register_transfer(account_from, account_to, amount, tax)
 
         response = accountDTO.only_obj_key(account_from)
 

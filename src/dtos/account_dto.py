@@ -19,6 +19,7 @@ class accountDTO:
                 "account_to_key": transaction.related_transaction.account.account_key if transaction.related_transaction else None,
                 "type": transaction.type.enumerator,
                 "amount": f"{transaction.amount/100 :.2f}",
+                "tax": f"{transaction.tax/100:.2f}",
                 "created_at": transaction.created_at.isoformat(),
             }
             extract_list.append(transaction_dict)
