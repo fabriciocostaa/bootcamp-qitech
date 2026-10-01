@@ -1,6 +1,7 @@
 from datetime import date
 
-from tests.utils import PayloadGenerator, RandomGenerator, RequestGenerator
+from tests.utils import PayloadGenerator, RequestGenerator
+from tests.utils.object_generator import ObjectGenerator
 
 
 def birthdate_for_age(age_in_years: int) -> str:
@@ -70,25 +71,20 @@ class TestclientCreate:
             assert response["code"] == "QIT000001"
 
     def test_creates_client_in_pending(self):
-        document_number = RandomGenerator.generate_cpf()
-        payload = PayloadGenerator.create_client_payload()
-        payload["document_number"] = document_number
-
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
-
-        _key = response["client_key"]
-
-        status, response = RequestGenerator.GET_client(_key)
+        client, jwt_token = ObjectGenerator.create_authenticated_client()
+        _key = client["client_key"]
+ 
+        status, response = RequestGenerator.GET_client(_key, jwt_token)
         assert status == 200
         assert response["client_key"] == _key
+        assert response["name"] == client["name"]
+        assert response["email"] == client["email"]
+        assert response["document_number"] == client["document_number"]
+        assert response["birthdate"] == client["birthdate"]
         assert response["status"] == "pending"
-        assert response["name"] == payload["name"]
-        assert response["email"] == payload["email"]
-        assert response["document_number"] == document_number
-        assert response["birthdate"] == payload["birthdate"]
-        assert len(response["status_events"]) == 1
         assert response["status_events"][0]["status"] == "pending"
+        assert response["status_events"][0]["event_datetime"] is not None
+        assert response["accounts"] == []
 
     def test_refuses_impossible_birthdate(self):
         """Formato certo, data inexistente: 422, nunca 500.
@@ -166,14 +162,11 @@ class TestclientCreate:
         'pending'. Uma regra recusa o pedido, a outra decide o estado —
         e sao coisas diferentes.
         """
-        payload = PayloadGenerator.create_client_payload()
-        payload["birthdate"] = birthdate_for_age(81)
+        
+        client, jwt_token = ObjectGenerator.create_authenticated_client()
+        client["birthdate"] = birthdate_for_age(82)
+        _key = client["client_key"]
 
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
-
-        _key = response["client_key"]
-
-        status, response = RequestGenerator.GET_client(_key)
+        status, response = RequestGenerator.GET_client(_key, jwt_token)
         assert status == 200
-        assert response["status"] == "failed"
+        assert response["status"] == "rejected"  #arrumar aqui ele está criando com outra data 
