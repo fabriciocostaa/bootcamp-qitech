@@ -47,3 +47,17 @@ class PayloadGenerator:
     def create_new_status_payload(new_status: str = None) -> dict:
         payload = {"status": new_status}
         return payload
+
+    @staticmethod
+    def create_client_auth_payload(document_number: str = None, password: str = None) -> dict:
+        if document_number is None:
+            document_number = RandomGenerator.generate_cpf()
+
+        if password is None:
+            password = "senhaerrada123"
+
+        payload = {
+            "document_number": document_number,
+            "password": password
+        }
+        return payload

@@ -421,6 +421,7 @@ tests/integration/test_healthcheck.py::TestHealthCheck::test_home PASSED
 ============================== 35 passed in 1.54s ==============================
 ```
 
+pytest -v tests/integration/cllient/test_client_update.py
 Para rodar só um arquivo (ou só um teste), acrescente o caminho:
 
 ```bash

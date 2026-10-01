@@ -104,6 +104,8 @@ class AccountRepository:
     def list_page(self, account: Account, limit: int, offset: int, filters: dict) -> list[AccountTransaction]:
         query = self.session.query(AccountTransaction).filter(AccountTransaction.account == account)
 
+        print(query)
+        
         start_date = filters.get("start_date")
         if start_date is not None:
             query = query.filter(AccountTransaction.created_at >= start_date)

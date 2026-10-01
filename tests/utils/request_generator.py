@@ -26,23 +26,24 @@ class RequestGenerator:
             payload=client_payload,
             headers={"INTERNAL-TOKEN": INTERNAL_TOKEN}
         )
+        return response.response_status, response.response_json
 
     @staticmethod
-    def GET_client(client_key: str) -> BaseConnectorResponse:
+    def GET_client(client_key: str, jwt_token: str) -> BaseConnectorResponse:
         response = ClientRequisition.send(
             "GET",
             f"/client/{client_key}",
-            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
+            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN, "Authorization": f"Bearer {jwt_token}"},
         )
         return response.response_status, response.response_json
 
     @staticmethod
-    def PUT_client(client_key: str, update_payload: dict) -> BaseConnectorResponse:
+    def PUT_client(client_key: str, jwt_token: str, update_payload: dict) -> BaseConnectorResponse:
         response = ClientRequisition.send(
             "PUT",
             f"/client/{client_key}",
             payload=update_payload,
-            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
+            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN, "Authorization": f"Bearer {jwt_token}"},
         )
         return response.response_status, response.response_json
 
