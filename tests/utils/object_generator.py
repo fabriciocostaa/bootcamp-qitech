@@ -5,21 +5,21 @@ from tests.utils.request_generator import RequestGenerator
 
 class ObjectGenerator:
     @staticmethod
-    def create_sample_entity(hello: str = None) -> BaseConnectorResponse:
+    def create_client(hello: str = None) -> BaseConnectorResponse:
 
-        sample_entity_payload = PayloadGenerator.create_sample_entity_payload(hello=hello)
+        client_payload = PayloadGenerator.create_client_payload()
 
-        status, response = RequestGenerator.POST_sample_entity(sample_entity_payload)
+        status, response = RequestGenerator.POST_client(client_payload)
         assert status == 201
 
         return response
 
     @staticmethod
-    def update_sample_entity(sample_entity_key, new_status: str = None) -> BaseConnectorResponse:
+    def update_client(client_key, new_status: str = None) -> BaseConnectorResponse:
 
-        sample_entity_payload = PayloadGenerator.create_new_status_payload(new_status)
+        client_payload = PayloadGenerator.create_new_status_payload(new_status)
 
-        status, response = RequestGenerator.PUT_sample_entity(sample_entity_key, sample_entity_payload)
+        status, response = RequestGenerator.PUT_client(client_key, client_payload)
         assert status == 202
 
         return response

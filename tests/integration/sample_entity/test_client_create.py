@@ -18,10 +18,10 @@ def birthdate_for_age(age_in_years: int) -> str:
     return date(today.year - age_in_years, today.month, today.day).isoformat()
 
 
-class TestSampleEntityCreate:
+class TestclientCreate:
     def test_refuses_empty_body(self):
         payload = {}
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 400
         assert response["code"] == "QIT000001"
 
@@ -31,12 +31,12 @@ class TestSampleEntityCreate:
         Quem escreve `{"hllo": "mundo"}` com erro de digitacao prefere
         receber um 400 agora a descobrir amanha que o campo nunca chegou.
         Quem garante isso e o "additionalProperties": false do
-        src/schemas/post_sample_entity.json.
+        src/schemas/post_client.json.
         """
-        payload = PayloadGenerator.create_sample_entity_payload()
+        payload = PayloadGenerator.create_client_payload()
         payload["campo_que_nao_existe"] = 1
 
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 400
         assert response["code"] == "QIT000001"
 
@@ -44,7 +44,7 @@ class TestSampleEntityCreate:
         """Cada campo de pessoa tem um formato, e o schema cobra os tres.
 
         Estao juntos num teste so porque sao a MESMA regra vista tres
-        vezes: um `pattern` no src/schemas/post_sample_entity.json. Cada
+        vezes: um `pattern` no src/schemas/post_client.json. Cada
         volta do laco derruba um deles e mantem os outros certos — assim,
         quando este teste ficar vermelho, a mensagem diz qual formato
         parou de ser cobrado.
@@ -61,34 +61,32 @@ class TestSampleEntityCreate:
         ]
 
         for campo, valor_torto in campos_tortos:
-            payload = PayloadGenerator.create_sample_entity_payload()
+            payload = PayloadGenerator.create_client_payload()
             payload[campo] = valor_torto
 
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            status, response = RequestGenerator.POST_client(payload)
 
             assert status == 400, f"o campo '{campo}' aceitou o valor '{valor_torto}'"
             assert response["code"] == "QIT000001"
 
-    def test_creates_entity_in_pending(self):
+    def test_creates_client_in_pending(self):
         document_number = RandomGenerator.generate_cpf()
-        payload = PayloadGenerator.create_sample_entity_payload()
+        payload = PayloadGenerator.create_client_payload()
         payload["document_number"] = document_number
 
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
 
-        _key = response["sample_entity_key"]
+        _key = response["client_key"]
 
-        status, response = RequestGenerator.GET_sample_entity(_key)
+        status, response = RequestGenerator.GET_client(_key)
         assert status == 200
-        assert response["sample_entity_key"] == _key
+        assert response["client_key"] == _key
         assert response["status"] == "pending"
-        assert response["hello"] == payload["hello"]
         assert response["name"] == payload["name"]
         assert response["email"] == payload["email"]
         assert response["document_number"] == document_number
         assert response["birthdate"] == payload["birthdate"]
-        assert response["counter"] == 0
         assert len(response["status_events"]) == 1
         assert response["status_events"][0]["status"] == "pending"
 
@@ -100,10 +98,10 @@ class TestSampleEntityCreate:
         quem as recusa é o controller.
         """
         for impossible_birthdate in ["9999-99-99", "2025-02-30"]:
-            payload = PayloadGenerator.create_sample_entity_payload()
+            payload = PayloadGenerator.create_client_payload()
             payload["birthdate"] = impossible_birthdate
 
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            status, response = RequestGenerator.POST_client(payload)
             assert status == 422
             assert response["code"] == "QIT001007"
 
@@ -116,45 +114,45 @@ class TestSampleEntityCreate:
         conta nao existe como CPF. Formato certo e valor impossivel — por
         isso a resposta e 422, e nao 400.
         """
-        payload = PayloadGenerator.create_sample_entity_payload()
+        payload = PayloadGenerator.create_client_payload()
         payload["document_number"] = "111.222.333-44"
 
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
 
         assert status == 422
         assert response["code"] == "QIT001003"
 
     def test_refuses_duplicated_document_number(self):
-        primeira = PayloadGenerator.create_sample_entity_payload()
-        status, _response = RequestGenerator.POST_sample_entity(primeira)
+        primeira = PayloadGenerator.create_client_payload()
+        status, _response = RequestGenerator.POST_client(primeira)
         assert status == 201
 
-        segunda = PayloadGenerator.create_sample_entity_payload()
+        segunda = PayloadGenerator.create_client_payload()
         segunda["document_number"] = primeira["document_number"]
 
-        status, response = RequestGenerator.POST_sample_entity(segunda)
+        status, response = RequestGenerator.POST_client(segunda)
 
         assert status == 409
         assert response["code"] == "QIT001004"
 
     def test_refuses_duplicated_email(self):
-        primeira = PayloadGenerator.create_sample_entity_payload()
-        status, _response = RequestGenerator.POST_sample_entity(primeira)
+        primeira = PayloadGenerator.create_client_payload()
+        status, _response = RequestGenerator.POST_client(primeira)
         assert status == 201
 
-        segunda = PayloadGenerator.create_sample_entity_payload()
+        segunda = PayloadGenerator.create_client_payload()
         segunda["email"] = primeira["email"]
 
-        status, response = RequestGenerator.POST_sample_entity(segunda)
+        status, response = RequestGenerator.POST_client(segunda)
 
         assert status == 409
         assert response["code"] == "QIT001005"
 
     def test_refuses_underage(self):
-        payload = PayloadGenerator.create_sample_entity_payload()
+        payload = PayloadGenerator.create_client_payload()
         payload["birthdate"] = birthdate_for_age(17)
 
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
 
         assert status == 422
         assert response["code"] == "QIT001006"
@@ -168,14 +166,14 @@ class TestSampleEntityCreate:
         'pending'. Uma regra recusa o pedido, a outra decide o estado —
         e sao coisas diferentes.
         """
-        payload = PayloadGenerator.create_sample_entity_payload()
+        payload = PayloadGenerator.create_client_payload()
         payload["birthdate"] = birthdate_for_age(81)
 
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
 
-        _key = response["sample_entity_key"]
+        _key = response["client_key"]
 
-        status, response = RequestGenerator.GET_sample_entity(_key)
+        status, response = RequestGenerator.GET_client(_key)
         assert status == 200
         assert response["status"] == "failed"

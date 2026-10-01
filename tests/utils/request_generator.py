@@ -8,47 +8,47 @@ INTERNAL_TOKEN = environ.get("INTERNAL_TOKEN", "default_token")
 
 class RequestGenerator:
     @staticmethod
-    def POST_sample_entity(sample_entity_payload: dict) -> BaseConnectorResponse:
+    def POST_client(client_payload: dict) -> BaseConnectorResponse:
         response = ClientRequisition.send(
             "POST",
-            "/sample_entity",
-            payload=sample_entity_payload,
+            "/client",
+            payload=client_payload,
             headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
         )
 
         return response.response_status, response.response_json
 
     @staticmethod
-    def GET_sample_entity(sample_entity_key: str) -> BaseConnectorResponse:
+    def POST_client_auth(client_payload: dict) -> BaseConnectorResponse:
+        response = ClientRequisition.send(
+            "POST",
+            "/auth/login",
+            payload=client_payload,
+            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN}
+        )
+
+    @staticmethod
+    def GET_client(client_key: str) -> BaseConnectorResponse:
         response = ClientRequisition.send(
             "GET",
-            f"/sample_entity/{sample_entity_key}",
+            f"/client/{client_key}",
             headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
         )
         return response.response_status, response.response_json
 
     @staticmethod
-    def PUT_sample_entity(sample_entity_key: str, update_payload: dict) -> BaseConnectorResponse:
+    def PUT_client(client_key: str, update_payload: dict) -> BaseConnectorResponse:
         response = ClientRequisition.send(
             "PUT",
-            f"/sample_entity/{sample_entity_key}",
+            f"/client/{client_key}",
             payload=update_payload,
             headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
         )
         return response.response_status, response.response_json
 
     @staticmethod
-    def PUT_webhook_sample_entity(sample_entity_key: str) -> BaseConnectorResponse:
+    def GET_clients(params: dict = None) -> BaseConnectorResponse:
         response = ClientRequisition.send(
-            "PUT",
-            f"/webhook/sample_entity/{sample_entity_key}/increment_counter",
-            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
-        )
-        return response.response_status, response.response_json
-
-    @staticmethod
-    def GET_sample_entities(params: dict = None) -> BaseConnectorResponse:
-        response = ClientRequisition.send(
-            "GET", "/sample_entities", headers={"INTERNAL-TOKEN": INTERNAL_TOKEN}, query_params=params
+            "GET", "/clients", headers={"INTERNAL-TOKEN": INTERNAL_TOKEN}, query_params=params
         )
         return response.response_status, response.response_json

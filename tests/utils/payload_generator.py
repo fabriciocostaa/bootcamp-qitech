@@ -5,11 +5,11 @@ from tests.utils.random_generator import RandomGenerator
 
 class PayloadGenerator:
     @staticmethod
-    def create_sample_entity_payload(
-        hello: str = None,
+    def create_client_payload(
         name: str = None,
         email: str = None,
         document_number: str = None,
+        password: str= None,    #acrescentei senha aos clientes
         birthdate: str = None,
     ) -> dict:
         """Um cadastro valido, com qualquer campo trocado a pedido.
@@ -19,9 +19,6 @@ class PayloadGenerator:
         na regra de duplicidade. Quem testa FILTRO precisa do contrario
         disso: um valor conhecido, pra poder procurar por ele depois.
         """
-        if hello is None:
-            hello = "world"
-
         if name is None:
             name = "Maria da Silva"
 
@@ -34,11 +31,14 @@ class PayloadGenerator:
         if birthdate is None:
             birthdate = "1990-05-17"
 
+        if password is None:
+            password = "senhamaria123"
+
         payload = {
-            "hello": hello,
             "name": name,
             "email": email,
             "document_number": document_number,
+            "password": password,
             "birthdate": birthdate,
         }
         return payload
