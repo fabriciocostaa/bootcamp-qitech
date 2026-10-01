@@ -92,7 +92,7 @@ class AccountRepository:
         transaction_in = AccountTransaction()
         transaction_in.account = account_to
         transaction_in.type = transfer_in_type
-        transaction_in.amount = amount - tax #tarifa de 2%
+        transaction_in.amount = amount 
         transaction_in.tax = 0
         transaction_in.related_transaction_id = transaction_out.id 
         account_to.balance += amount 
