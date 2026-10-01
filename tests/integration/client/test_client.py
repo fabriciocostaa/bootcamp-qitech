@@ -5,13 +5,13 @@ from tests.utils import DbUtils, PayloadGenerator, RequestGenerator
 
 def extract_keys(response: dict) -> list:
     """As chaves da pagina, na ordem em que a API devolveu."""
-    sample_entity_keys = []
-    for sample_entity in response["data"]:
-        sample_entity_keys.append(sample_entity["sample_entity_key"])
-    return sample_entity_keys
+    client_keys = []
+    for client in response["data"]:
+        client_keys.append(client["client_key"])
+    return client_keys
 
 
-class TestSampleEntities:
+class TestClients:
     def test_get_pages(self):
         DbUtils.rollback()
 
@@ -19,21 +19,21 @@ class TestSampleEntities:
         # cadastro precisa do proprio CPF e do proprio e-mail, senao o
         # segundo POST bate na regra de duplicidade do controller.
         for _entidade in range(3):
-            payload = PayloadGenerator.create_sample_entity_payload()
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            payload = PayloadGenerator.create_client_payload()
+            status, response = RequestGenerator.POST_client(payload)
             assert status == 201
 
-        status, response = RequestGenerator.GET_sample_entities()
+        status, response = RequestGenerator.GET_clients()
         assert status == 200
         assert len(response["data"]) == 3
         assert response["is_last_page"] is True
 
-        status, response = RequestGenerator.GET_sample_entities({"limit": 2})
+        status, response = RequestGenerator.GET_clients({"limit": 2})
         assert status == 200
         assert len(response["data"]) == 2
         assert response["is_last_page"] is False
 
-        status, response = RequestGenerator.GET_sample_entities({"limit": 2, "page": 1})
+        status, response = RequestGenerator.GET_clients({"limit": 2, "page": 1})
         assert status == 200
         assert len(response["data"]) == 1
         assert response["is_last_page"] is True
@@ -41,40 +41,40 @@ class TestSampleEntities:
     def test_get_filtered(self):
         DbUtils.rollback()
 
-        payload = PayloadGenerator.create_sample_entity_payload()
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        payload = PayloadGenerator.create_client_payload()
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
 
-        _key1 = response["sample_entity_key"]
+        _key1 = response["client_key"]
 
         for _entidade in range(2):
-            payload = PayloadGenerator.create_sample_entity_payload()
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            payload = PayloadGenerator.create_client_payload()
+            status, response = RequestGenerator.POST_client(payload)
             assert status == 201
 
-        new_status = "success"
+        new_status = "approved"
         payload = {"status": new_status}
 
-        status, response = RequestGenerator.PUT_sample_entity(_key1, payload)
+        status, response = RequestGenerator.PUT_client(_key1, payload)
         assert status == 202
 
-        status, response = RequestGenerator.GET_sample_entities({"status": "success"})
+        status, response = RequestGenerator.GET_clients({"status": "approved"})
         assert status == 200
         assert len(response["data"]) == 1
         assert response["is_last_page"] is True
-        assert response["data"][0]["sample_entity_key"] == _key1
+        assert response["data"][0]["client_key"] == _key1
 
-        status, response = RequestGenerator.GET_sample_entities({"status": "pending"})
+        status, response = RequestGenerator.GET_clients({"status": "pending"})
         assert status == 200
         assert len(response["data"]) == 2
         assert response["is_last_page"] is True
 
     def test_wrong_params(self):
-        status, response = RequestGenerator.GET_sample_entities({"page": -3})
+        status, response = RequestGenerator.GET_clients({"page": -3})
         assert status == 400
         assert response["code"] == "QIT000001"
 
-        status, response = RequestGenerator.GET_sample_entities({"limit": 500})
+        status, response = RequestGenerator.GET_clients({"limit": 500})
         assert status == 400
         assert response["code"] == "QIT000001"
 
@@ -90,12 +90,12 @@ class TestSampleEntities:
         o obj_to_simplified_dict por obj_to_dict no
         list_obj_to_list_dict e ele fica vermelho.
         """
-        payload = PayloadGenerator.create_sample_entity_payload()
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        payload = PayloadGenerator.create_client_payload()
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
-        created_key = response["sample_entity_key"]
+        created_key = response["client_key"]
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"document_number": payload["document_number"]}
         )
         assert status == 200
@@ -113,7 +113,7 @@ class TestSampleEntities:
         o que ele nao conhece ele ignora calado. O
         `additionalProperties: false` do schema devolve o engano.
         """
-        status, response = RequestGenerator.GET_sample_entities({"stauts": "pending"})
+        status, response = RequestGenerator.GET_clients({"stauts": "pending"})
         assert status == 400
         assert response["code"] == "QIT000001"
 
@@ -127,16 +127,16 @@ class TestSampleEntities:
         """
         unique_surname = f"Zimmerman{uuid4().hex[:8]}"
 
-        payload = PayloadGenerator.create_sample_entity_payload(name=f"Ana {unique_surname}")
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        payload = PayloadGenerator.create_client_payload(name=f"Ana {unique_surname}")
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
-        matching_key = response["sample_entity_key"]
+        matching_key = response["client_key"]
 
-        payload = PayloadGenerator.create_sample_entity_payload(name="Bruno Carvalho")
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        payload = PayloadGenerator.create_client_payload(name="Bruno Carvalho")
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
 
-        status, response = RequestGenerator.GET_sample_entities({"name": unique_surname.upper()})
+        status, response = RequestGenerator.GET_clients({"name": unique_surname.upper()})
         assert status == 200
         assert extract_keys(response) == [matching_key]
 
@@ -147,22 +147,22 @@ class TestSampleEntities:
         parcial como o de nome, ela acharia o cadastro — e e exatamente
         isso que o teste proibe.
         """
-        payload = PayloadGenerator.create_sample_entity_payload()
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        payload = PayloadGenerator.create_client_payload()
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
-        created_key = response["sample_entity_key"]
+        created_key = response["client_key"]
 
-        status, response = RequestGenerator.GET_sample_entities({"email": payload["email"]})
+        status, response = RequestGenerator.GET_clients({"email": payload["email"]})
         assert status == 200
         assert extract_keys(response) == [created_key]
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"document_number": payload["document_number"]}
         )
         assert status == 200
         assert extract_keys(response) == [created_key]
 
-        status, response = RequestGenerator.GET_sample_entities({"email": payload["email"][:10]})
+        status, response = RequestGenerator.GET_clients({"email": payload["email"][:10]})
         assert status == 200
         assert created_key not in extract_keys(response)
 
@@ -182,14 +182,14 @@ class TestSampleEntities:
 
         created_keys = []
         for birthdate in birthdates:
-            payload = PayloadGenerator.create_sample_entity_payload(
+            payload = PayloadGenerator.create_client_payload(
                 name=family_name, birthdate=birthdate
             )
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            status, response = RequestGenerator.POST_client(payload)
             assert status == 201
-            created_keys.append(response["sample_entity_key"])
+            created_keys.append(response["client_key"])
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"name": family_name, "birthdate_from": "1931-01-02", "birthdate_to": "1931-01-03"}
         )
         assert status == 200
@@ -203,20 +203,20 @@ class TestSampleEntities:
         """
         team_name = f"Curie{uuid4().hex[:8]}"
 
-        payload = PayloadGenerator.create_sample_entity_payload(
+        payload = PayloadGenerator.create_client_payload(
             name=team_name, birthdate="1940-03-01"
         )
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
 
-        payload = PayloadGenerator.create_sample_entity_payload(
+        payload = PayloadGenerator.create_client_payload(
             name=team_name, birthdate="1960-03-01"
         )
-        status, response = RequestGenerator.POST_sample_entity(payload)
+        status, response = RequestGenerator.POST_client(payload)
         assert status == 201
-        younger_key = response["sample_entity_key"]
+        younger_key = response["client_key"]
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"name": team_name, "birthdate_from": "1950-01-01"}
         )
         assert status == 200
@@ -238,19 +238,19 @@ class TestSampleEntities:
 
         created_keys = []
         for _entidade in range(3):
-            payload = PayloadGenerator.create_sample_entity_payload(name=batch_name)
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            payload = PayloadGenerator.create_client_payload(name=batch_name)
+            status, response = RequestGenerator.POST_client(payload)
             assert status == 201
-            created_keys.append(response["sample_entity_key"])
+            created_keys.append(response["client_key"])
 
         created_keys.reverse()
 
-        status, response = RequestGenerator.GET_sample_entities({"name": batch_name, "limit": 2})
+        status, response = RequestGenerator.GET_clients({"name": batch_name, "limit": 2})
         assert status == 200
         assert extract_keys(response) == created_keys[:2]
         assert response["is_last_page"] is False
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"name": batch_name, "limit": 2, "page": 1}
         )
         assert status == 200
@@ -265,7 +265,7 @@ class TestSampleEntities:
         parece que a busca rodou e nao achou ninguem. O 400 diz a verdade,
         que a pergunta e que estava errada.
         """
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"birthdate_from": "2000-01-01", "birthdate_to": "1990-01-01"}
         )
         assert status == 400
@@ -285,28 +285,28 @@ class TestSampleEntities:
 
         created_keys = []
         for _entidade in range(3):
-            payload = PayloadGenerator.create_sample_entity_payload(name=batch_name)
-            status, response = RequestGenerator.POST_sample_entity(payload)
+            payload = PayloadGenerator.create_client_payload(name=batch_name)
+            status, response = RequestGenerator.POST_client(payload)
             assert status == 201
-            created_keys.append(response["sample_entity_key"])
+            created_keys.append(response["client_key"])
 
-        status, response = RequestGenerator.PUT_sample_entity(
-            created_keys[0], PayloadGenerator.create_new_status_payload("success")
+        status, response = RequestGenerator.PUT_client(
+            created_keys[0], PayloadGenerator.create_new_status_payload("approved")
         )
         assert status == 202
 
-        status, response = RequestGenerator.PUT_sample_entity(
+        status, response = RequestGenerator.PUT_client(
             created_keys[1], PayloadGenerator.create_new_status_payload("failed")
         )
         assert status == 202
 
-        status, response = RequestGenerator.GET_sample_entities(
-            {"name": batch_name, "status": ["success", "failed"]}
+        status, response = RequestGenerator.GET_clients(
+            {"name": batch_name, "status": ["approved", "failed"]}
         )
         assert status == 200
         assert sorted(extract_keys(response)) == sorted([created_keys[0], created_keys[1]])
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"name": batch_name, "status": ["pending"]}
         )
         assert status == 200
@@ -315,16 +315,16 @@ class TestSampleEntities:
     def test_refuses_unknown_status_filter(self):
         """Status que nao existe e erro, nao lista vazia.
 
-        Quem recusa e o `enum` do src/schemas/get_sample_entities.json,
+        Quem recusa e o `enum` do src/schemas/get_clients.json,
         o mesmo mecanismo que confere o corpo de um POST. Uma lista
         vazia mentiria aqui, dizendo que a busca rodou e nao achou
         ninguem.
         """
-        status, response = RequestGenerator.GET_sample_entities({"status": ["status_que_nao_existe"]})
+        status, response = RequestGenerator.GET_clients({"status": ["status_que_nao_existe"]})
         assert status == 400
         assert response["code"] == "QIT000001"
 
-        status, response = RequestGenerator.GET_sample_entities(
+        status, response = RequestGenerator.GET_clients(
             {"status": ["pending", "status_que_nao_existe"]}
         )
         assert status == 400

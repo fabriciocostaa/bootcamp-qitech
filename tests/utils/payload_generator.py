@@ -49,12 +49,7 @@ class PayloadGenerator:
         return payload
 
     @staticmethod
-    def create_client_auth_payload(document_number: str = None, password: str = None) -> dict:
-        if document_number is None:
-            document_number = RandomGenerator.generate_cpf()
-
-        if password is None:
-            password = "senhaerrada123"
+    def create_client_auth_payload(document_number: str, password: str) -> dict:
 
         payload = {
             "document_number": document_number,

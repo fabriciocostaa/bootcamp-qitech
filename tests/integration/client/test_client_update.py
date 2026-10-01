@@ -73,18 +73,6 @@ class TestClientUpdate:
         assert status == 400
         assert response["code"] == "QIT000001"
 
-    # def test_webhook(self):
-
-    #     client = ObjectGenerator.create_client()
-    #     _key = client["client_key"]
-
-    #     status, response = RequestGenerator.PUT_webhook_client(_key)
-    #     assert status == 204
-
-    #     status, response = RequestGenerator.GET_client(_key)
-    #     assert status == 200
-    #     assert response["client_key"] == _key
-    #     assert response["counter"] == 1
 
     def test_update_finished(self):
         """Quem ja saiu de `pending` nao muda mais de status."""
