@@ -139,7 +139,7 @@ class AccountController(BaseController):
         total_debited = amount + tax
 
         if account_from.balance < total_debited:
-                raise InsufficientBalance(account_from_key, account_from.balance)
+            raise InsufficientBalance(account_from_key, account_from.balance)
 
         self.account_repository.register_transfer(account_from, account_to, amount, tax)
 
