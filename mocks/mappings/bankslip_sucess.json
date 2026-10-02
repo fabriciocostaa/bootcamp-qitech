@@ -1,0 +1,17 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/bankslips"
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "bankslip_id": "12345-abcde",
+      "status": "generated",
+      "barcode": "34191.09008 63571.277308 71444.640008 5 88920000025000"
+    }
+  }
+}

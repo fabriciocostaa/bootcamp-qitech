@@ -1,0 +1,27 @@
+{
+  "scenarioName": "Toggle Customer Approval",
+  "requiredScenarioState": "Started",
+  "newScenarioState": "Reject Next",
+  "request": {
+    "method": "POST",
+    "urlPath": "/customers/score",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.cpf"
+      },
+      {
+        "matchesJsonPath": "$.full_name"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "status": "approved",
+      "message": "Cliente aprovado com sucesso"
+    }
+  }
+}
