@@ -36,6 +36,10 @@ services:
       # estudar; num sistema de verdade, isso nunca teria valor padrao.
       ADMIN_DOCUMENT_NUMBER: ${ADMIN_DOCUMENT_NUMBER}
       ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD}
+      ACCOUNT_DOCUMENT_NUMBER: ${ACCOUNT_DOCUMENT_NUMBER}
+      ACCOUNT_PASSWORD: ${ACCOUNT_PASSWORD}
+      REVENUE_ACCOUNT_KEY: ${REVENUE_ACCOUNT_KEY}
+
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-default_token}
       JWT_SECRET: ${JWT_SECRET}
       # A API de boletos (assunto do sabado 4). Variavel que nao esta

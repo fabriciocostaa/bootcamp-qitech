@@ -24,3 +24,12 @@ class accountDTO:
             }
             extract_list.append(transaction_dict)
         return extract_list
+
+
+    @staticmethod
+    def object_to_dict(account: Account) -> dict:
+        dto = dict()
+        
+        dto["account_key"] = account.account_key
+
+        return dto

@@ -13,3 +13,5 @@ class TransactionType(Base):
     WITHDRAW = "withdraw"
     TRANSFER_IN = "transfer_in"
     TRANSFER_OUT = "transfer_out"
+    FEE_DEBIT = "fee_debit"
+    FEE_CREDIT = "fee_credit"

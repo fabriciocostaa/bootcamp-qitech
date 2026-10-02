@@ -12,7 +12,7 @@ class AccountTransaction(Base):
     account_id = Column(Integer, ForeignKey(Account.id), nullable=False)
     type_id = Column(Integer, ForeignKey(TransactionType.id), nullable=False)
     amount = Column(BigInteger, nullable=False)
-    tax = Column(BigInteger, nullable=False)
+    fee = Column(BigInteger, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     # Chave estrangeira para a mesma tabela

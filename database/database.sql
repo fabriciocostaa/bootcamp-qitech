@@ -73,14 +73,16 @@ INSERT INTO transaction_type (enumerator) VALUES
 ('deposit'),
 ('withdraw'),
 ('transfer_in'),
-('transfer_out');
+('transfer_out'),
+('fee_debit'),
+('fee_credit');
 
 CREATE TABLE account_transaction(
     id                              SERIAL PRIMARY KEY,
     account_id                      INTEGER NOT NULL REFERENCES account(id),
     type_id                         INTEGER NOT NULL REFERENCES transaction_type(id),
     amount                          BIGINT NOT NULL CHECK (amount > 0),
-    tax                             BIGINT NOT NULL CHECK (tax >= 0),
+    fee                             BIGINT NOT NULL DEFAULT 0,
     created_at                      TIMESTAMP NOT NULL DEFAULT NOW(),
     related_transaction_id          INTEGER REFERENCES account_transaction(id)
 );

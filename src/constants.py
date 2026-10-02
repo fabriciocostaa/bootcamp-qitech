@@ -8,6 +8,10 @@ SERVICE_ROOT = os.path.abspath(os.path.dirname(__file__))
 # src/utils/schema_handler.py.
 SCHEMA_PATH = os.path.join(SERVICE_ROOT, "schemas")
 
+REVENUE_ACCOUNT_KEY = os.environ.get("REVENUE_ACCOUNT_KEY")
+
+TRANSFER_FEE_PERCENTAGE = float(os.environ.get("TRANSFER_FEE_PERCENTAGE", "0.02"))
+
 APP_ENV = os.environ.get("APP_ENV", "local")
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "bootcamp-api")
 

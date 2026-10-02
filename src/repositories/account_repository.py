@@ -56,7 +56,7 @@ class AccountRepository:
         transaction.account = account
         transaction.type = transaction_type
         transaction.amount = amount
-        transaction.tax = 0
+        transaction.fee = 0
 
         if type_enumerator == TransactionType.DEPOSIT:
             account.balance += amount
@@ -66,45 +66,73 @@ class AccountRepository:
 
         self.session.add(transaction)
 
-    def get_two_by_key_for_update(self, account_key1: str, account_key2: str) -> tuple[Account, Account]:
-        first_key, second_key = sorted([account_key1, account_key2])
+    def get_accounts_for_update(self, *account_keys: str) -> dict[str, Account]:
+        """Trava N contas, sempre na mesma ordem (por account_key),
+        pra evitar deadlock entre operações concorrentes que envolvem
+        as mesmas contas em ordens diferentes.
+        """
+        ordered_keys = sorted(set(account_keys))
+        accounts = {}
 
-        first_account = self.get_by_key_for_update(first_key) #retorna a conta com a chave menor, para evitar deadlocks
-        second_account = self.get_by_key_for_update(second_key)
+        for key in ordered_keys:
+            accounts[key] = self.get_by_key_for_update(key)
 
-        accounts_by_key = {first_key: first_account, second_key: second_account}
-        return accounts_by_key[account_key1], accounts_by_key[account_key2] #retorna as contas na ordem das chaves passadas, para não quebrar a lógica do controller
+        return accounts
 
-    def register_transfer(self, account_from: Account, account_to: Account, amount: int, tax: int) -> None:
-        transfer_in_type = self.get_transaction_type(TransactionType.TRANSFER_IN)
-        transfer_out_type = self.get_transaction_type(TransactionType.TRANSFER_OUT)
+    def register_transfer(
+        self, from_account: Account, to_account: Account, revenue_account: Account,
+        amount: int, fee: int
+    ) -> None:
+        transfer_out = self.get_transaction_type(TransactionType.TRANSFER_OUT)
+        transfer_in = self.get_transaction_type(TransactionType.TRANSFER_IN)
 
+        out_transaction = AccountTransaction()
+        out_transaction.account = from_account
+        out_transaction.type = transfer_out
+        out_transaction.amount = amount
+        from_account.balance -= amount
+        self.session.add(out_transaction)
+        self.session.flush()
 
-        transaction_out = AccountTransaction()
-        transaction_out.account = account_from
-        transaction_out.type = transfer_out_type
-        transaction_out.amount = amount
-        transaction_out.tax = tax #transacao de quem faz possui tarifa
-        account_from.balance -= (amount + tax)
-        self.session.add(transaction_out)
-        self.session.flush()  # precisa do id antes de linkar a outra ponta
+        in_transaction = AccountTransaction()
+        in_transaction.account = to_account
+        in_transaction.type = transfer_in
+        in_transaction.amount = amount
+        in_transaction.related_transaction_id = out_transaction.id
+        to_account.balance += amount
+        self.session.add(in_transaction)
+        self.session.flush()
 
-        transaction_in = AccountTransaction()
-        transaction_in.account = account_to
-        transaction_in.type = transfer_in_type
-        transaction_in.amount = amount 
-        transaction_in.tax = 0
-        transaction_in.related_transaction_id = transaction_out.id 
-        account_to.balance += amount 
-        self.session.add(transaction_in)
-        self.session.flush()  # garante que as duas transações sejam persistidas antes de continuar
+        out_transaction.related_transaction_id = in_transaction.id
 
-        transaction_out.related_transaction_id = transaction_in.id # Linka as duas transações
+        # A tarifa só existe se fee > 0 — transferência sem custo não
+        # deveria gerar lançamento nenhum de taxa, nem de valor zero.
+        if fee > 0:
+            fee_debit_type = self.get_transaction_type(TransactionType.FEE_DEBIT)
+            fee_credit_type = self.get_transaction_type(TransactionType.FEE_CREDIT)
+
+            fee_debit = AccountTransaction()
+            fee_debit.account = from_account
+            fee_debit.type = fee_debit_type
+            fee_debit.amount = fee
+            from_account.balance -= fee
+            self.session.add(fee_debit)
+            self.session.flush()
+
+            fee_credit = AccountTransaction()
+            fee_credit.account = revenue_account
+            fee_credit.type = fee_credit_type
+            fee_credit.amount = fee
+            fee_credit.related_transaction_id = fee_debit.id
+            revenue_account.balance += fee
+            self.session.add(fee_credit)
+            self.session.flush()
+
+            fee_debit.related_transaction_id = fee_credit.id
 
     def list_page(self, account: Account, limit: int, offset: int, filters: dict) -> list[AccountTransaction]:
         query = self.session.query(AccountTransaction).filter(AccountTransaction.account == account)
 
-        print(query)
         
         start_date = filters.get("start_date")
         if start_date is not None:

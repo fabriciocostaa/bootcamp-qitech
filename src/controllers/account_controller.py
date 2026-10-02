@@ -5,6 +5,8 @@ from models import AccountStatus, TransactionType, Account
 from datetime import date
 from dtos.account_dto import accountDTO
 from sqlalchemy.exc import IntegrityError
+from constants import REVENUE_ACCOUNT_KEY
+from utils.fee import calculate_transfer_fee
 
 class AccountController(BaseController):
     def __init__(self) ->None:
@@ -119,7 +121,16 @@ class AccountController(BaseController):
         if account_from_key == account_to_key:
             raise SameAccountTransfer(account_from_key)
 
-        account_from, account_to = self.account_repository.get_two_by_key_for_update(account_from_key, account_to_key)
+        fee = calculate_transfer_fee(amount)
+        total_debited = amount + fee
+
+        accounts = self.account_repository.get_accounts_for_update(
+        account_from_key, account_to_key, REVENUE_ACCOUNT_KEY
+        )
+
+        account_from = accounts[account_from_key]
+        account_to = accounts[account_to_key]
+        revenue_account = accounts[REVENUE_ACCOUNT_KEY]
 
         if account_from is None:
             raise NotFoundAccount(account_from_key)
@@ -135,15 +146,13 @@ class AccountController(BaseController):
         if account_to.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_to_key)
 
-        tax = int(amount * 0.02)
-        total_debited = amount + tax
 
         if account_from.balance < total_debited:
             raise InsufficientBalance(account_from_key, account_from.balance)
 
-        self.account_repository.register_transfer(account_from, account_to, amount, tax)
+        self.account_repository.register_transfer(account_from, account_to, revenue_account, amount, fee)
 
-        response = accountDTO.only_obj_key(account_from)
+        response = accountDTO.object_to_dict(account_from)
 
         if idempotency_key is not None:
             self.idempotency_repository.create(idempotency_key, endpoint, request_hash, response)
