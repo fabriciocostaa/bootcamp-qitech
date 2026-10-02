@@ -1,0 +1,27 @@
+{
+  "scenarioName": "Toggle Customer Approval",
+  "requiredScenarioState": "Reject Next",
+  "newScenarioState": "Started",
+  "request": {
+    "method": "POST",
+    "urlPath": "/customers/score",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.cpf"
+      },
+      {
+        "matchesJsonPath": "$.full_name"
+      }
+    ]
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "status": "rejected",
+      "message": "Cliente reprovado por política de crédito"
+    }
+  }
+}
