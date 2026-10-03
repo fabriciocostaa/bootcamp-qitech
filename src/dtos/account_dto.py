@@ -32,4 +32,6 @@ class accountDTO:
         
         dto["account_key"] = account.account_key
 
+        #tentar devolver o quanto ele gastou e a taxa paga
+
         return dto
