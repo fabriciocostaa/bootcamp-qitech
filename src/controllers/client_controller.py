@@ -1,5 +1,8 @@
 from datetime import date
 
+from connectors.kyc_connector import KYCConnector
+from connectors.antifraud_connector import AntifraudConnector
+
 from controllers.base_controller import BaseController
 from dtos import clientDTO
 from errors import (
@@ -33,7 +36,7 @@ class ClientController(BaseController):
         self.client_repository = ClientRepository(self.context) 
         self.account_repository = AccountRepository(self.context)
 
-    def create(self, client_data: dict) -> dict:
+    def create(self, client_data: dict, client_ip: str = "101.0.0.1") -> dict:
         """Confere quem está entrando, e só então cria.
 
         As quatro perguntas abaixo acontecem ANTES de qualquer escrita, e
@@ -70,16 +73,37 @@ class ClientController(BaseController):
         # outro desfecho — e as duas regras moram lado a lado de
         # propósito, pra que a diferença fique à vista.
         if age > MAXIMUM_AGE:
-            new_status = ClientStatus.REJECTED
+            self.client_repository.update_status(client, ClientStatus.REJECTED)
         else:
-            new_status = ClientStatus.PENDING
+            self.client_repository.update_status(client, ClientStatus.PENDING)
+            self.session.flush()
 
-        self.client_repository.update_status(client, new_status)
+            kyc_connector = KYCConnector()
+            antifraud_connector = AntifraudConnector()
+
+            kyc_response = kyc_connector.verify_identity(document_number, client_data["name"])
+
+            if kyc_response.status == 200:
+                
+                fraud_response = antifraud_connector.analyze_risk(document_number, email, client_ip)
+                
+                if fraud_response.status == 200:
+            
+                    self.client_repository.update_status(client, ClientStatus.APPROVED)
+                    self.account_repository.create(client)
+
+                else:
+                    self.client_repository.update_status(client, ClientStatus.REJECTED)
+            else:
+                
+                self.client_repository.update_status(client, ClientStatus.REJECTED)
 
         client_dto = clientDTO.only_obj_key(client)
         self.session.commit()
 
         return client_dto
+
+        
 
     def get_by_key(self, client_key: str) -> dict:
         self.logger.debug(f"Buscando a entidade de chave {client_key}")

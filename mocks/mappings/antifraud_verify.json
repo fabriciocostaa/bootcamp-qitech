@@ -1,0 +1,28 @@
+{
+  "request": {
+    "method": "POST",
+    "urlPath": "/antifraud/analyze",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.cpf"
+      },
+      {
+        "matchesJsonPath": "$.email"
+      },
+      {
+        "matchesJsonPath": "$.ip_address"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "risk_level": "low",
+      "fraud_score": 12,
+      "recommendation": "allow"
+    }
+  }
+}
