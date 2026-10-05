@@ -1,10 +1,7 @@
 {
-  "scenarioName": "Toggle Customer Approval",
-  "requiredScenarioState": "Reject Next",
-  "newScenarioState": "Started",
   "request": {
     "method": "POST",
-    "urlPath": "/customers/score",
+    "urlPath": "/kyc/verify",
     "bodyPatterns": [
       {
         "matchesJsonPath": "$.cpf"
@@ -15,13 +12,14 @@
     ]
   },
   "response": {
-    "status": 403,
+    "status": 200,
     "headers": {
       "Content-Type": "application/json"
     },
     "jsonBody": {
-      "status": "rejected",
-      "message": "Cliente reprovado por política de crédito"
+      "status": "approved",
+      "provider": "Federal_Database_Mock",
+      "message": "Identidade confirmada com sucesso."
     }
   }
 }
