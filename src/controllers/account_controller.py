@@ -1,7 +1,7 @@
 from controllers.base_controller import BaseController
-from repositories.account_repository import AccountRepository
-from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate, AccountNotOwnedByClient
-from models import AccountStatus, TransactionType, Account
+from repositories import AccountRepository, ClientRepository
+from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate, AccountNotOwnedByClient, IdempotencyKeyConflict
+from models import AccountStatus, TransactionType, Account, OperationKind
 from datetime import date
 from dtos.account_dto import accountDTO
 from sqlalchemy.exc import IntegrityError
@@ -12,59 +12,64 @@ class AccountController(BaseController):
     def __init__(self) ->None:
         super().__init__(__name__)
         self.account_repository = AccountRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
+        self.client_repository = ClientRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
 
     def _check_account_ownership(self, account: Account) -> None:
         if account.client.client_key != self.context.authenticated_client_key:
             raise AccountNotOwnedByClient()
     
     def deposit(self, account_key: str, amount: float, idempotency_key: str = None):
-        endpoint = "POST /account/deposit"
+        if amount <= 0:
+            raise InvalidAmount(amount)
+        
+        actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
         request_hash = self._hash_request(account_key=account_key, amount=amount)
 
-        cached_response = self._check_idempotency(idempotency_key, endpoint, request_hash)
-        if cached_response is not None:
-            return cached_response
+        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+        if operation_exist is not None:
+            if operation_exist.request_hash != request_hash:
+                raise IdempotencyKeyConflict(idempotency_key)
+            return accountDTO.operation_to_dict(operation_exist)
         
         account = self.account_repository.get_by_key_for_update(account_key)
 
         if account is None:
             raise NotFoundAccount(account_key)
         
-        if amount <= 0:
-            raise InvalidAmount(amount)
-
         if not isinstance(amount, int):
             raise InvalidAmount(amount)
 
         if account.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_key)
 
-        self.account_repository.register_transaction(account, TransactionType.DEPOSIT, amount)
+        operation = self.account_repository.create_operation(
+            actor_client=actor,
+            kind_enumerator=OperationKind.DEPOSIT,
+            amount=amount,
+            fee=0,
+            target_account=account,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash, 
+        )
 
-        response = accountDTO.only_obj_key(account)
+        self.account_repository.register_transaction(operation, account, TransactionType.DEPOSIT, amount)
 
-        if idempotency_key is not None:
-            self.idempotency_repository.create(idempotency_key, endpoint, request_hash, response)
-
-        try:
-            self.session.commit()
-        except IntegrityError:
-            # Perdeu a corrida: outra requisição, com a MESMA chave, já
-            # commitou primeiro. Desfaz o que essa tentou fazer e devolve
-            # a resposta de quem chegou primeiro — não processa de novo.
-            self.session.rollback()
-            existing = self.idempotency_repository.get_by_key(idempotency_key, endpoint)
-            return existing.response_body
-
+        response = accountDTO.operation_to_dict(operation)
+        self.session.commit()
         return response
+    
+    def withdraw(self, account_key: str, amount: float, idempotency_key: str) -> dict:
+        if amount <= 0:
+            raise InvalidAmount(amount)
 
-    def withdraw(self, account_key: str, amount: float, idempotency_key: str=None):
-        endpoint = "POST /account/withdraw"
+        actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
         request_hash = self._hash_request(account_key=account_key, amount=amount)
 
-        cached_response = self._check_idempotency(idempotency_key, endpoint, request_hash)
-        if cached_response is not None:
-            return cached_response
+        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+        if operation_exist is not None:
+            if operation_exist.request_hash != request_hash:
+                raise IdempotencyKeyConflict(idempotency_key)
+            return accountDTO.operation_to_dict(operation_exist)
         
         account = self.account_repository.get_by_key_for_update(account_key)
 
@@ -73,8 +78,6 @@ class AccountController(BaseController):
 
         self._check_account_ownership(account)
         
-        if amount <= 0:
-            raise InvalidAmount(amount)
 
         if not isinstance(amount, int):
             raise InvalidAmount(amount)
@@ -85,33 +88,23 @@ class AccountController(BaseController):
         if account.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_key)
 
-        self.account_repository.register_transaction(account, TransactionType.WITHDRAW, amount)
+        operation = self.account_repository.create_operation(
+            actor_client=actor,
+            kind_enumerator=OperationKind.WITHDRAW,
+            amount=amount,
+            fee=0,
+            target_account=account,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash, 
+        )
 
-        response = accountDTO.only_obj_key(account)
+        self.account_repository.register_transaction(operation, account, TransactionType.WITHDRAW, amount)
 
-        if idempotency_key is not None:
-            self.idempotency_repository.create(idempotency_key, endpoint, request_hash, response)
-
-        try:
-            self.session.commit()
-        except IntegrityError:
-            # Perdeu a corrida: outra requisição, com a MESMA chave, já
-            # commitou primeiro. Desfaz o que essa tentou fazer e devolve
-            # a resposta de quem chegou primeiro — não processa de novo.
-            self.session.rollback()
-            existing = self.idempotency_repository.get_by_key(idempotency_key, endpoint)
-            return existing.response_body
-
+        response = accountDTO.operation_to_dict(operation)
+        self.session.commit()
         return response
 
-    def transfer(self, account_from_key: str, account_to_key: str, amount: float, idempotency_key: str=None):
-        endpoint = "POST /account/transfer"
-        request_hash = self._hash_request(account_key=account_from_key, amount=amount)
-        
-        cached_response = self._check_idempotency(idempotency_key, endpoint, request_hash)
-        if cached_response is not None:
-            return cached_response
-        
+    def transfer(self, account_from_key: str, account_to_key: str, amount: float, idempotency_key: str):
         if amount <= 0:
             raise InvalidAmount(amount)
 
@@ -120,7 +113,16 @@ class AccountController(BaseController):
 
         if account_from_key == account_to_key:
             raise SameAccountTransfer(account_from_key)
+        
+        actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
+        request_hash = self._hash_request(account_from_key=account_from_key, account_to_key=account_to_key, amount=amount)
 
+        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+        if operation_exist is not None:
+            if operation_exist.request_hash != request_hash:
+                raise IdempotencyKeyConflict(idempotency_key)
+            return accountDTO.operation_to_dict(operation_exist)
+        
         fee = calculate_transfer_fee(amount)
         total_debited = amount + fee
 
@@ -135,10 +137,10 @@ class AccountController(BaseController):
         if account_from is None:
             raise NotFoundAccount(account_from_key)
 
-        self._check_account_ownership(account_from)
-
         if account_to is None:
             raise NotFoundAccount(account_to_key)
+
+        self._check_account_ownership(account_from)
 
         if account_from.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_from_key)
@@ -146,26 +148,39 @@ class AccountController(BaseController):
         if account_to.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_to_key)
 
-
         if account_from.balance < total_debited:
             raise InsufficientBalance(account_from_key, account_from.balance)
 
-        self.account_repository.register_transfer(account_from, account_to, revenue_account, amount, fee)
+        operation = self.account_repository.create_operation(
+            actor_client=actor,
+            kind_enumerator=OperationKind.TRANSFER,
+            amount=amount,
+            fee=fee,
+            origin_account=account_from,
+            target_account=account_to,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash, 
+        )
 
-        response = accountDTO.object_to_dict(account_from)
+        out_tx = self.account_repository.register_transaction(operation, account_from, TransactionType.TRANSFER_OUT, amount)
+        in_tx = self.account_repository.register_transaction(
+        operation, account_to, TransactionType.TRANSFER_IN, amount, related_transaction_id=out_tx.id)
+        
+        out_tx.related_transaction_id = in_tx.id
 
-        if idempotency_key is not None:
-            self.idempotency_repository.create(idempotency_key, endpoint, request_hash, response)
+        if fee > 0:
+            fee_debit = self.account_repository.register_transaction(operation, account_from, TransactionType.FEE_DEBIT, fee)
+            fee_credit = self.account_repository.register_transaction(operation, revenue_account, TransactionType.FEE_CREDIT, fee, related_transaction_id=fee_debit.id)
+            fee_debit.related_transaction_id = fee_credit.id
 
-        try:
+            response = accountDTO.operation_to_dict(operation)
+
+        try: 
             self.session.commit()
-        except IntegrityError:
-            # Perdeu a corrida: outra requisição, com a MESMA chave, já
-            # commitou primeiro. Desfaz o que essa tentou fazer e devolve
-            # a resposta de quem chegou primeiro — não processa de novo.
+        except:
             self.session.rollback()
-            existing = self.idempotency_repository.get_by_key(idempotency_key, endpoint)
-            return existing.response_body
+            existing = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+            return accountDTO.operation_to_dict(existing)
 
         return response
 

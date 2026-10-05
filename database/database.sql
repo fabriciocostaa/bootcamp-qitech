@@ -77,25 +77,43 @@ INSERT INTO transaction_type (enumerator) VALUES
 ('fee_debit'),
 ('fee_credit');
 
+CREATE TABLE operation_kind(
+    id                              SERIAL PRIMARY KEY,
+    enumerator                      VARCHAR(50) NOT NULL,
+    UNIQUE(enumerator)
+);
+
+INSERT INTO operation_kind (enumerator) VALUES
+('deposit'),
+('withdraw'),
+('transfer');
+
+CREATE TABLE account_operation(
+    id                              SERIAL PRIMARY KEY,
+    operation_key                   CHAR(36) NOT NULL,
+    actor_client_id                 INTEGER NOT NULL REFERENCES client(id),
+    kind_id                         INTEGER NOT NULL REFERENCES operation_kind(id),
+    origin_account_id               INTEGER REFERENCES account(id),
+    target_account_id               INTEGER REFERENCES account(id),
+    amount                          BIGINT NOT NULL CHECK (amount > 0),
+    fee                             BIGINT NOT NULL DEFAULT 0,
+    idempotency_key                 VARCHAR(255) NOT NULL,
+    request_hash                    VARCHAR(64),
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(operation_key),
+    UNIQUE(actor_client_id, idempotency_key)
+);
+
 CREATE TABLE account_transaction(
     id                              SERIAL PRIMARY KEY,
+    operation_id                    INTEGER NOT NULL REFERENCES account_operation(id),
     account_id                      INTEGER NOT NULL REFERENCES account(id),
     type_id                         INTEGER NOT NULL REFERENCES transaction_type(id),
     amount                          BIGINT NOT NULL CHECK (amount > 0),
-    fee                             BIGINT NOT NULL DEFAULT 0,
     created_at                      TIMESTAMP NOT NULL DEFAULT NOW(),
     related_transaction_id          INTEGER REFERENCES account_transaction(id)
 );
 
-CREATE TABLE idempotency_key(
-    id                              SERIAL PRIMARY KEY,
-    idempotency_key                 VARCHAR(255) NOT NULL,
-    endpoint                        VARCHAR(255) NOT NULL,
-    request_hash                    VARCHAR(64) NOT NULL,
-    response_body                   JSONB NOT NULL,
-    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
-    UNIQUE(idempotency_key, endpoint)
-);
 
 CREATE TABLE operator(
     id                              SERIAL PRIMARY KEY,

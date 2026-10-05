@@ -1,4 +1,4 @@
-from models import Account
+from models import Account, AccountOperation
 
 class accountDTO:
 
@@ -25,13 +25,12 @@ class accountDTO:
             extract_list.append(transaction_dict)
         return extract_list
 
-
     @staticmethod
-    def object_to_dict(account: Account) -> dict:
-        dto = dict()
-        
-        dto["account_key"] = account.account_key
-
-        #tentar devolver o quanto ele gastou e a taxa paga
-
-        return dto
+    def operation_to_dict(operation: AccountOperation) -> dict:
+        return {
+            "operation_key": operation.operation_key,
+            "kind": operation.kind.enumerator,
+            "amount": operation.amount,
+            "fee": operation.fee,
+            "created_at": operation.created_at.isoformat(),
+        }

@@ -1,5 +1,5 @@
 from database import Context
-from models import Client, Account, AccountStatus, AccountStatusEvent, TransactionType, AccountTransaction
+from models import Client, Account, AccountStatus, AccountStatusEvent, TransactionType, AccountTransaction, AccountOperation, OperationKind
 from datetime import datetime
 from uuid import uuid4
 
@@ -27,6 +27,15 @@ class AccountRepository:
         self.session.add(account)
         return account
 
+    def get_operation_by_idempotency(self, actor_client_id: int, idempotency_key: str) -> AccountOperation:
+        return (
+            self.session.query(AccountOperation)
+            .filter(
+                AccountOperation.actor_client_id == actor_client_id,
+                AccountOperation.idempotency_key == idempotency_key,
+            )
+            .one_or_none()
+        )
 
     def get_status(self, enumerator: str) -> AccountStatus:
         return self.session.query(AccountStatus).filter(AccountStatus.enumerator == enumerator).one()
@@ -46,25 +55,54 @@ class AccountRepository:
             .first()
         )
 
+    def create_operation(
+        self, actor_client, kind_enumerator: str, amount: int, fee: int,
+        origin_account=None, target_account=None,
+        idempotency_key: str = None, request_hash: str = None,
+        ) -> AccountOperation:
+        
+        kind = self.session.query(OperationKind).filter(OperationKind.enumerator == kind_enumerator).one()
+
+        operation = AccountOperation()
+        operation.operation_key = str(uuid4())
+        operation.actor = actor_client
+        operation.kind = kind
+        operation.origin_account = origin_account
+        operation.target_account = target_account
+        operation.amount = amount
+        operation.fee = fee
+        operation.idempotency_key = idempotency_key
+        operation.request_hash = request_hash
+
+        self.session.add(operation)
+        self.session.flush()  # precisa do id pra linkar as transactions depois
+        return operation
+
     def get_transaction_type(self, enumerator: str) -> TransactionType:
             return self.session.query(TransactionType).filter(TransactionType.enumerator == enumerator).one()
 
-    def register_transaction(self, account: Account, type_enumerator:str, amount: int) -> None:
+    def register_transaction(
+        self, operation: AccountOperation, account: Account, type_enumerator: str,
+        amount: int, related_transaction_id: int = None,
+        ) -> AccountTransaction:
+        
         transaction_type = self.get_transaction_type(type_enumerator)
 
         transaction = AccountTransaction()
+        transaction.operation = operation
         transaction.account = account
         transaction.type = transaction_type
         transaction.amount = amount
-        transaction.fee = 0
+        transaction.related_transaction_id = related_transaction_id
 
-        if type_enumerator == TransactionType.DEPOSIT:
+        if type_enumerator in (TransactionType.DEPOSIT, TransactionType.TRANSFER_IN, TransactionType.FEE_CREDIT):
             account.balance += amount
-
-        elif type_enumerator == TransactionType.WITHDRAW:
+        else:
             account.balance -= amount
 
         self.session.add(transaction)
+        self.session.flush()
+        return transaction
 
     def get_accounts_for_update(self, *account_keys: str) -> dict[str, Account]:
         """Trava N contas, sempre na mesma ordem (por account_key),
