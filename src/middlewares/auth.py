@@ -6,6 +6,7 @@ from constants import JWT_SECRET, BYPASS_ENDPOINTS, AUTH_BYPASS_ENDPOINTS
 from database import get_context
 from errors import qi_exception_to_response
 from errors.custom_errors import InvalidToken, UnauthorizedException, TokenExpiredException, InvalidCredentials
+from repositories import TokenRepository
 
 def register_auth_middleware(application: FastAPI) -> None:
     @application.middleware("http")
@@ -31,12 +32,18 @@ def register_auth_middleware(application: FastAPI) -> None:
         # session_manager usa. Quem vier depois (controller) pega
         # daqui, sem precisar receber isso por parâmetro.
         context = get_context()
+        token_repository = TokenRepository(context)
 
+        if token_repository.is_revoked(payload["jti"]):
+            return qi_exception_to_response(InvalidToken())
         if payload.get("type") == "client":
             context.authenticated_client_key = payload["subject_key"]
         elif payload.get("type") == "operator":
             context.authenticated_operator_key = payload["subject_key"]
         else:
             return qi_exception_to_response(InvalidCredentials())
+
+        context.authenticated_jti = payload["jti"]
+        context.authenticated_exp = payload["exp"]
 
         return await call_next(request)

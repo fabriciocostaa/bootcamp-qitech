@@ -194,6 +194,12 @@ def create_app() -> FastAPI:
         auth_resource.on_post_operator_login, methods=["POST"]
     )
 
+    application.add_api_route(
+        "/auth/logout",
+        auth_resource.on_post_logout,
+        methods=["POST"],
+    )
+
     application.add_api_route
 
     register_error_handlers(application)

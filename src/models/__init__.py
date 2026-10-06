@@ -4,6 +4,7 @@ from models.account_status import AccountStatus
 from models.transaction_type import TransactionType
 from models.operation_kind import OperationKind
 from models.operator import Operator
+from models.revoked_token import RevokedToken
 
 # 2. Entidades Principais
 from models.client import Client 

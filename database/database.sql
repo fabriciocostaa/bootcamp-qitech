@@ -126,3 +126,11 @@ CREATE TABLE operator(
     UNIQUE(operator_key),
     UNIQUE(email)
 );
+
+CREATE TABLE revoked_token(
+    id                       SERIAL PRIMARY KEY,
+    jti                      CHAR(36) NOT NULL,
+    expires_at               TIMESTAMP NOT NULL,
+    created_at               TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(jti)
+);
