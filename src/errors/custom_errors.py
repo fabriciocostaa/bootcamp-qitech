@@ -239,4 +239,14 @@ class IdempotencyKeyConflict(QIException):
         http_status = 409
         description = f"Idempotency key {idempotency_key} was already used with a different request."
         translation = f"Essa chave de idempotência {idempotency_key} já foi usada em uma requisição diferente."
+        super().__init__(title, self.code, http_status, description, translation),
+
+class IdempotencyKeyMissing(QIException):
+    code = "QIT003008"
+
+    def __init__(self) -> None:
+        title = "Idempotency Key Missing"
+        http_status = 400
+        description = "Idempotency key is required"
+        translation = "É necessário informar a chave de idempotência."
         super().__init__(title, self.code, http_status, description, translation)
