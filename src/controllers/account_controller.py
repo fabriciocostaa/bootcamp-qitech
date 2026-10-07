@@ -204,6 +204,9 @@ class AccountController(BaseController):
 
         if account is None:
             raise NotFoundAccount(account_key)
+
+        if account.status.enumerator != AccountStatus.ACTIVE:
+            raise AccountNotActive()
         
         self._check_account_ownership(account)
         extract = self.account_repository.list_page(account, limit + 1, offset, filters)

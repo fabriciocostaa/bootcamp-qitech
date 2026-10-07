@@ -11,10 +11,9 @@ from errors import (
     InvalidBirthdate,
     InvalidDocumentNumber,
     InvalidParameter,
-    NotFoundSampleEntity,
-    SampleEntityFinalStatus,
-    UnderageSampleEntity,
-    OperatorRequired,
+    NotFoundClient,
+    ClientFinalStatus,
+    UnderageClient,
     AccountNotOwnedByClient
 )
 from models import Client, ClientStatus
@@ -64,7 +63,7 @@ class ClientController(BaseController):
         age = self._age_in_years(birthdate)
 
         if age < MINIMUM_AGE:
-            raise UnderageSampleEntity(age, MINIMUM_AGE)
+            raise UnderageClient(age, MINIMUM_AGE)
 
         client = self.client_repository.create(client_data=client_data)
 
@@ -106,18 +105,18 @@ class ClientController(BaseController):
         
 
     def get_by_key(self, client_key: str) -> dict:
-        self.logger.debug(f"Buscando a entidade de chave {client_key}")
+        self.logger.debug(f"Buscando o cliente de chave {client_key}")
 
         client = self.client_repository.get_by_key(client_key)
 
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
         is_owner = client.client_key == self.context.authenticated_client_key
         is_operator = self.context.authenticated_operator_key is not None
 
         if not is_owner and not is_operator:
-            raise AccountNotOwnedByClient(client_key)
+            raise AccountNotOwnedByClient()
 
         return clientDTO.obj_to_dict(client)
 
@@ -175,7 +174,7 @@ class ClientController(BaseController):
         client = self.client_repository.get_by_key(client_key)
 
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
         self._check_status_can_change(client, new_status)
 
@@ -195,7 +194,7 @@ class ClientController(BaseController):
         old_status = client.status.enumerator
 
         if old_status != ClientStatus.PENDING:
-            raise SampleEntityFinalStatus(old_status, new_status)
+            raise ClientFinalStatus(old_status, new_status)
 
     def _parse_birthdate(self, raw_birthdate: str) -> date:
         """Converte a data, ou recusa com 422 em vez de 500.
