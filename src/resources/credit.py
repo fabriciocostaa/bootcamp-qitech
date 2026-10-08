@@ -48,3 +48,24 @@ class CreditResource:
             content=jsonable_encoder(credit_response),
             status_code=http_status.HTTP_201_CREATED,
         )
+
+
+    def on_post_pay_invoice(self, client_key: str, payload: dict, request: Request) -> JSONResponse:
+        controller = CreditController()
+
+        idempotency_key = request.headers.get("Idempotency-Key")
+        if idempotency_key is None:
+            raise IdempotencyKeyMissing()
+        
+        credit_response = controller.pay_invoice(client_key, payload, idempotency_key)
+        
+        if credit_response.get("status") in ["REJECTED", "ERROR"]:
+            return JSONResponse(
+                content=jsonable_encoder(credit_response),
+                status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        return JSONResponse(
+            content=jsonable_encoder(credit_response),
+            status_code=http_status.HTTP_200_OK,
+        )

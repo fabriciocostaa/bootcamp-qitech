@@ -18,4 +18,5 @@ from models.account_status_event import AccountStatusEvent
 from models.account_operation import AccountOperation
 from models.account_transaction import AccountTransaction  # Geralmente aponta para AccountOperation
 
-
+# 5. Sistema de Faturas (Crédito)
+from models.credit_invoice import CreditInvoice, InvoiceStatus, InvoiceStatusEvent

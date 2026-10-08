@@ -143,6 +143,13 @@ def create_app() -> FastAPI:
         methods=["POST"],
     )
 
+    application.add_api_route(
+        "/client/{client_key}/invoice/pay",
+        credit_resource.on_post_pay_invoice,
+        methods=["POST"],
+    )
+
+
     application.add_api_route("/", health_check_resource.on_get_home, methods=["GET"])
     application.add_api_route(
         "/health_check",
@@ -207,7 +214,7 @@ def create_app() -> FastAPI:
         auth_resource.on_post_operator_login, methods=["POST"]
     )
 
-    application.add_api_route
+
 
     register_error_handlers(application)
 
