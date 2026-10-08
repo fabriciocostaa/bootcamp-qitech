@@ -92,3 +92,5 @@ services:
     volumes:
       # Mapeia uma pasta local para dentro do mock server
       - ./mocks:/home/wiremock
+    command: 
+      ["--global-response-templating"]
