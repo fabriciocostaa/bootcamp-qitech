@@ -32,3 +32,6 @@ class Client(Base):
     back_populates="client",
     order_by="asc(ClientStatusEvent.event_datetime)",
     )
+
+
+    credit_lines = relationship("CreditLine", back_populates="client")

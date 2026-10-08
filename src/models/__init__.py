@@ -8,6 +8,7 @@ from models.operator import Operator
 # 2. Entidades Principais
 from models.client import Client 
 from models.account import Account
+from models.credit_line import CreditLine
 
 # 3. Históricos e Eventos (Dependem de Client e Account)
 from models.client_status_event import ClientStatusEvent
@@ -16,3 +17,5 @@ from models.account_status_event import AccountStatusEvent
 # 4. Operações Financeiras e Fluxo de Caixa (Dependem de quase tudo anterior)
 from models.account_operation import AccountOperation
 from models.account_transaction import AccountTransaction  # Geralmente aponta para AccountOperation
+
+

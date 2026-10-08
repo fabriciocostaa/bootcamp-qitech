@@ -126,3 +126,15 @@ CREATE TABLE operator(
     UNIQUE(operator_key),
     UNIQUE(email)
 );
+
+CREATE TABLE credit_line(
+    id                      SERIAL PRIMARY KEY,
+    credit_line_key         CHAR(36) NOT NULL,
+    client_id               INTEGER NOT NULL REFERENCES client(id),
+    approved_limit          BIGINT NOT NULL CHECK (approved_limit >= 0),
+    available_limit         BIGINT NOT NULL CHECK (available_limit >= 0),
+    interest_rate           NUMERIC(5, 4) NOT NULL,
+    status                  VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    created_at              TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(credit_line_key)
+);
