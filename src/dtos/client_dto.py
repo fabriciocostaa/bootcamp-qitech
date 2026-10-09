@@ -35,6 +35,12 @@ class clientDTO:
         for status_event in client.status_events:
             status_event_dto = dict()
             status_event_dto["status"] = status_event.status.enumerator
+
+            if status_event.operator:
+                status_event_dto["operator_key"] = status_event.operator.operator_key
+            else:
+                status_event_dto["operator_key"] = None
+            
             status_event_dto["event_datetime"] = status_event.event_datetime.isoformat()
             client_dto["status_events"].append(status_event_dto)
 

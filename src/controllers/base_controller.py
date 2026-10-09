@@ -29,6 +29,9 @@ class BaseController(metaclass=ABCMeta):
         if self.context.authenticated_operator_key is None:
             raise OperatorRequired()
 
+    def operator_key(self) -> str:
+        return self.context.authenticated_operator_key
+
     def _hash_request(self, **fields) -> str:
         raw = json.dumps(fields, sort_keys=True, default=str)
         return hashlib.sha256(raw.encode()).hexdigest()

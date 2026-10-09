@@ -17,7 +17,7 @@ from errors import (
     AccountNotOwnedByClient
 )
 from models import Client, ClientStatus
-from repositories import ClientRepository, AccountRepository
+from repositories import ClientRepository, AccountRepository, OperatorRepository
 from utils.document_number import is_valid_cpf
 
 # A faixa de idade aceita. Abaixo do mínimo o cadastro é RECUSADO; acima
@@ -33,6 +33,7 @@ class ClientController(BaseController):
         super().__init__(__name__)
         self.client_repository = ClientRepository(self.context) 
         self.account_repository = AccountRepository(self.context)
+        self.operator_repository = OperatorRepository(self.context)
 
     def create(self, client_data: dict, client_ip: str = "101.0.0.1") -> dict:
         """Confere quem está entrando, e só então cria.
@@ -65,8 +66,6 @@ class ClientController(BaseController):
             raise UnderageClient(age, MINIMUM_AGE)
 
         client = self.client_repository.create(client_data=client_data)
-
-        self.client_repository.update_status(client, ClientStatus.PENDING)
         self.session.flush()
 
         kyc_connector = KYCConnector()
@@ -78,7 +77,7 @@ class ClientController(BaseController):
             
             fraud_response = antifraud_connector.analyze_risk(document_number, email, client_ip)
             
-            if fraud_response.status == 200:
+            if fraud_response.json.get("recommendation") == "allow":
         
                 self.client_repository.update_status(client, ClientStatus.APPROVED)
                 self.account_repository.create(client)
@@ -164,13 +163,16 @@ class ClientController(BaseController):
     def update_status(self, client_key: str, new_status: str) -> dict:
         self.require_operator() 
         client = self.client_repository.get_by_key(client_key)
+
+        operator_key = self.operator_key()
+        operator = self.operator_repository.get_by_key(operator_key) 
         
         if client is None:
             raise NotFoundClient(client_key)
 
         self._check_status_can_change(client, new_status)
 
-        self.client_repository.update_status(client, new_status)
+        self.client_repository.update_status(client, new_status, operator)
 
         #Aprovação de cadastro de cliente, cria conta com saldo 0
         if new_status == ClientStatus.APPROVED:

@@ -25,4 +25,9 @@ class OperatorRepository:
     
     def check_password(self, operator: Operator, password: str) -> bool:
         return bcrypt.checkpw(password.encode(), operator.password_hash.encode())
+
+    def get_by_key(self, operator_key: str) -> Operator:
+        return(
+            self.session.query(Operator).filter(Operator.operator_key == operator_key).first()
+        )
         

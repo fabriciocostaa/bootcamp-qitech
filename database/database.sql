@@ -1,3 +1,15 @@
+CREATE TABLE operator(
+    id                              SERIAL PRIMARY KEY,
+    operator_key                    CHAR(36) NOT NULL,
+    name                            VARCHAR(255) NOT NULL,
+    email                           VARCHAR(255) NOT NULL,
+    document_number                 CHAR(14) NOT NULL,
+    password_hash                   VARCHAR(255) NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(operator_key),
+    UNIQUE(email)
+);
+
 CREATE TABLE client_status(
     id		                        SERIAL PRIMARY KEY,
     enumerator                      VARCHAR(50) NOT NULL,
@@ -23,6 +35,15 @@ CREATE TABLE client(
     UNIQUE(client_key),
     UNIQUE(document_number),
     UNIQUE(email)
+);
+
+CREATE TABLE client_status_event(
+    id                              SERIAL PRIMARY KEY,
+    client_id                       INTEGER NOT NULL REFERENCES client(id),
+    status_id                       INTEGER NOT NULL REFERENCES client_status(id),
+    operator_id                     INTEGER REFERENCES operator(id),
+    event_datetime                  TIMESTAMP NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
 );
 
 CREATE TABLE account_status(
@@ -55,13 +76,6 @@ CREATE TABLE account_status_event(
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
 );
 
-CREATE TABLE client_status_event(
-    id                              SERIAL PRIMARY KEY,
-    client_id                       INTEGER NOT NULL REFERENCES client(id),
-    status_id                       INTEGER NOT NULL REFERENCES client_status(id),
-    event_datetime                  TIMESTAMP NOT NULL,
-    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
-);
 
 CREATE TABLE transaction_type(
     id                              SERIAL PRIMARY KEY,
@@ -112,19 +126,6 @@ CREATE TABLE account_transaction(
     amount                          BIGINT NOT NULL CHECK (amount > 0),
     created_at                      TIMESTAMP NOT NULL DEFAULT NOW(),
     related_transaction_id          INTEGER REFERENCES account_transaction(id)
-);
-
-
-CREATE TABLE operator(
-    id                              SERIAL PRIMARY KEY,
-    operator_key                    CHAR(36) NOT NULL,
-    name                            VARCHAR(255) NOT NULL,
-    email                           VARCHAR(255) NOT NULL,
-    document_number                 CHAR(14) NOT NULL,
-    password_hash                   VARCHAR(255) NOT NULL,
-    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
-    UNIQUE(operator_key),
-    UNIQUE(email)
 );
 
 CREATE TABLE credit_line(

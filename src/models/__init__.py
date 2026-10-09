@@ -10,6 +10,7 @@ from models.revoked_token import RevokedToken
 from models.client import Client 
 from models.account import Account
 from models.credit_line import CreditLine
+from models.operator import Operator
 
 # 3. Históricos e Eventos (Dependem de Client e Account)
 from models.client_status_event import ClientStatusEvent

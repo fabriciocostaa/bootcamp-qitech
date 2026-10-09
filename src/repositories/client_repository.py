@@ -41,12 +41,16 @@ class ClientRepository:
         self.session.add(client)
         return client
 
-    def update_status(self, client: Client, new_status_enumerator: str) -> None:
+    def update_status(self, client: Client, new_status_enumerator: str, operator=None) -> None:
         new_status = self.get_status(new_status_enumerator)
         client.status = new_status
 
         new_status_event = ClientStatusEvent()
         new_status_event.status = new_status
+
+        if operator:
+            new_status_event.operator_id = operator.id
+        
         new_status_event.event_datetime = datetime.now()
 
         client.status_events.append(new_status_event)
