@@ -54,8 +54,10 @@ class creditDTO:
             "status": "APPROVED",
             "withdrawn_amount": withdrawn_amount,
             "fee_charged": fee,
+            "total_cost": withdrawn_amount + fee,
             "remaining_credit_limit": remaining_limit,
             "invoice_due_amount": invoice_due,
+            "invoice_amount_due": invoice_due,
             "new_account_balance": account_balance
         }
 

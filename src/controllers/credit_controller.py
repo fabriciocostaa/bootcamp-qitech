@@ -1,6 +1,6 @@
 from controllers.base_controller import BaseController
 from connectors.risk_connector import RiskConnector
-from errors import NotFoundClient
+from errors import NotFoundClient, AccountNotOwnedByClient
 from repositories import ClientRepository
 from repositories import CreditRepository
 from repositories import AccountRepository 
@@ -23,6 +23,8 @@ class CreditController(BaseController):
         client = self.client_repository.get_by_key(client_key)
         if client is None:
             raise NotFoundClient(client_key)
+        if client.client_key != self.context.authenticated_client_key:
+            raise AccountNotOwnedByClient()
 
         risk_connector = RiskConnector()
         risk_response = risk_connector.get_risk_profile(client.document_number)
@@ -87,6 +89,14 @@ class CreditController(BaseController):
         client = self.client_repository.get_by_key(client_key)
         if client is None:
             raise NotFoundClient(client_key)
+        if client.client_key != self.context.authenticated_client_key:
+            raise AccountNotOwnedByClient()
+
+        account = self.account_repository.get_by_client_id_for_update(client.id)
+
+        if not account or account.status.enumerator != "active":
+            self.logger.warning(f"No active account found for client {client_key}")
+            return creditDTO.rejection_response(reason="Client does not have an active account")
 
         credit_line = self.credit_repository.get_by_client_id(client.id)
         if not credit_line or credit_line.status != "ACTIVE":
@@ -104,12 +114,6 @@ class CreditController(BaseController):
         if credit_line.available_limit < total_cost:
             self.logger.warning(f"Insufficient limit for client {client_key}. Needs {total_cost}, has {credit_line.available_limit}")
             return creditDTO.rejection_response(reason="Insufficient credit limit")
-
-        account = self.account_repository.get_by_client_id_for_update(client.id)
-        
-        if not account or account.status.enumerator != "active":
-            self.logger.warning(f"No active account found for client {client_key}")
-            return creditDTO.rejection_response(reason="Client does not have an active account")
 
         self.credit_repository.deduct_limit(credit_line, total_cost)
 
@@ -154,6 +158,8 @@ class CreditController(BaseController):
         client = self.client_repository.get_by_key(client_key)
         if client is None:
             raise NotFoundClient(client_key)
+        if client.client_key != self.context.authenticated_client_key:
+            raise AccountNotOwnedByClient()
 
         account = self.account_repository.get_by_client_id_for_update(client.id)
         if not account or account.status.enumerator != "active":

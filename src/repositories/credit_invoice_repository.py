@@ -48,7 +48,7 @@ class CreditInvoiceRepository:
         return self.session.query(CreditInvoice).filter_by(
             credit_line_id=credit_line_id,
             status_id=status_open.id
-        ).first()
+        ).with_for_update().populate_existing().first()
 
     def add_charge(self, invoice: CreditInvoice, amount_to_add: int) -> CreditInvoice:
         """Soma o valor do resgate + juros na dívida da fatura aberta"""

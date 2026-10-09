@@ -162,7 +162,6 @@ class TestInvoicePay:
         assert status == 401
         assert response["code"] == "QIT003002"
 
-    @known_bug("BUG-CREDIT-OWNERSHIP", "as rotas de credito nao checam o dono: um cliente logado paga (debitando da conta) a fatura de outro")
     def test_cannot_pay_another_clients_invoice(self):
         victim, _limit = client_in_debt(withdrawn=10000)
         intruder = ObjectGenerator.create_active_client()
