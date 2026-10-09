@@ -23,11 +23,7 @@ class AccountController(BaseController):
         if account is None:
             raise NotFoundAccount(account_key) # Lembre-se de importar ou criar este erro
 
-        is_owner = account.client.client_key == self.context.authenticated_client_key
-        is_operator = self.context.authenticated_operator_key is not None
-
-        if not is_owner and not is_operator:
-            raise AccountNotOwnedByClient()
+        self.require_operator() 
 
         response = accountDTO.status_history_to_list(account.status_events)
 
