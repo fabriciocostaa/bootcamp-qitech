@@ -182,3 +182,11 @@ class AccountRepository:
 
         query = query.order_by(AccountTransaction.created_at.desc())
         return query.offset(offset).limit(limit).all()
+
+    def get_by_client_id_for_update(self, client_id: int) -> Account:
+        return (
+            self.session.query(Account)
+            .filter(Account.client_id == client_id)
+            .with_for_update()
+            .one_or_none()
+        )

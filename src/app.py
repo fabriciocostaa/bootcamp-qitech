@@ -10,7 +10,7 @@ from middlewares import (
     register_session_manager_middleware,
     register_auth_middleware
 )
-from resources import HealthCheckResource, ClientResource
+from resources import HealthCheckResource, ClientResource, CreditResource
 from resources import AccountResource, AuthResource
 from utils.logger import setup_logging
 
@@ -129,6 +129,26 @@ def create_app() -> FastAPI:
     client_resource = ClientResource()
     account_resource = AccountResource()
     auth_resource = AuthResource()
+    credit_resource = CreditResource()
+
+    application.add_api_route(
+        "/client/{client_key}/credit",
+        credit_resource.on_post,
+        methods=["POST"],
+    )
+
+    application.add_api_route(
+        "/client/{client_key}/credit/withdraw",
+        credit_resource.on_post_withdraw,
+        methods=["POST"],
+    )
+
+    application.add_api_route(
+        "/client/{client_key}/invoice/pay",
+        credit_resource.on_post_pay_invoice,
+        methods=["POST"],
+    )
+
 
     application.add_api_route("/", health_check_resource.on_get_home, methods=["GET"])
     application.add_api_route(
@@ -193,6 +213,7 @@ def create_app() -> FastAPI:
         "/auth/operator/login",
         auth_resource.on_post_operator_login, methods=["POST"]
     )
+
 
     application.add_api_route(
         "/auth/logout",

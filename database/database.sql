@@ -127,6 +127,49 @@ CREATE TABLE operator(
     UNIQUE(email)
 );
 
+CREATE TABLE credit_line(
+    id                      SERIAL PRIMARY KEY,
+    credit_line_key         CHAR(36) NOT NULL,
+    client_id               INTEGER NOT NULL REFERENCES client(id),
+    approved_limit          BIGINT NOT NULL CHECK (approved_limit >= 0),
+    available_limit         BIGINT NOT NULL CHECK (available_limit >= 0),
+    interest_rate           NUMERIC(5, 4) NOT NULL,
+    status                  VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
+    created_at              TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(credit_line_key)
+);
+
+CREATE TABLE invoice_status(
+    id                              SERIAL PRIMARY KEY,
+    enumerator                      VARCHAR(50) NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(enumerator)
+);
+
+INSERT INTO invoice_status (enumerator) VALUES
+('open'),
+('closed'),
+('paid'),
+('overdue');
+
+CREATE TABLE credit_invoice(
+    id                              SERIAL PRIMARY KEY,
+    invoice_key                     CHAR(36) NOT NULL,
+    credit_line_id                  INTEGER NOT NULL REFERENCES credit_line(id),
+    status_id                       INTEGER NOT NULL REFERENCES invoice_status(id),
+    billing_cycle                   VARCHAR(7) NOT NULL,
+    amount_due                      BIGINT NOT NULL DEFAULT(0) CHECK (amount_due >= 0),
+    due_date                        TIMESTAMP NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(invoice_key)
+);
+
+CREATE TABLE invoice_status_event(
+    id                              SERIAL PRIMARY KEY,
+    invoice_id                      INTEGER NOT NULL REFERENCES credit_invoice(id),
+    status_id                       INTEGER NOT NULL REFERENCES invoice_status(id),
+    event_datetime                  TIMESTAMP NOT NULL,
+    created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
 CREATE TABLE revoked_token(
     id                       SERIAL PRIMARY KEY,
     jti                      CHAR(36) NOT NULL,
