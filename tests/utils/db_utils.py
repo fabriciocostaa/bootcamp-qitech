@@ -1,7 +1,9 @@
 from os import environ
 from pathlib import Path
+from uuid import uuid4
 
-from sqlalchemy import create_engine
+import bcrypt
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
 
@@ -24,6 +26,12 @@ DATABASE_OFFLINE = (
 )
 
 
+SEED_MISSING_VARIABLES = (
+    "Faltam variáveis no ambiente para recriar o operador e a conta de receita: {names}.\n"
+    "Elas já estão no seu .env (ADMIN_*, ACCOUNT_*, REVENUE_ACCOUNT_KEY)."
+)
+
+
 class DbUtils:
     """Apaga o banco inteiro e o recria do zero — quando alguém chama.
 
@@ -34,8 +42,15 @@ class DbUtils:
 
     O nome engana um pouco: isto não desfaz uma transação. Ele derruba
     o schema `public` com tudo que estiver dentro e roda o
-    `database/database.sql` de novo — tabelas vazias e os quatro status
-    do INSERT de volta.
+    `database/database.sql` de novo — tabelas vazias e os status do
+    INSERT de volta.
+
+    Depois de recriar, ele REPÕE o que a API assume que já existe: o
+    operador (sem ele nenhuma rota de operador funciona) e a conta de
+    receita do banco (sem ela toda transferência quebra, porque a taxa
+    precisa de um destino). Esses dois nascem de um seed, não do SQL; se
+    o rollback não os devolvesse, o primeiro teste de operador depois de
+    uma limpeza falharia por um motivo que nada tem a ver com ele.
 
     Quando o seu teste precisa chamar: sempre que alguma asserção
     depender de QUANTAS linhas existem no banco — contar, listar,
@@ -64,8 +79,56 @@ class DbUtils:
                     connection.exec_driver_sql(query)
 
                 connection.exec_driver_sql(SCHEMA_FILE.read_text())
+
+            DbUtils._seed(engine)
         except OperationalError:
             message = DATABASE_OFFLINE.format(host=engine.url.host, port=engine.url.port)
             raise RuntimeError(message) from None
         finally:
             engine.dispose()
+
+
+    @staticmethod
+    def _seed(engine) -> None:
+        names = ["ADMIN_DOCUMENT_NUMBER", "ADMIN_INITIAL_PASSWORD", "ACCOUNT_DOCUMENT_NUMBER",
+                 "ACCOUNT_PASSWORD", "REVENUE_ACCOUNT_KEY"]
+        missing = [name for name in names if not environ.get(name)]
+        if missing:
+            raise RuntimeError(SEED_MISSING_VARIABLES.format(names=", ".join(missing)))
+
+        def hash_password(raw: str) -> str:
+            return bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()
+
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO operator (operator_key, name, email, document_number, password_hash) "
+                    "VALUES (:key, 'Admin', 'admin@example.com', :doc, :pwd)"
+                ),
+                {
+                    "key": str(uuid4()),
+                    "doc": environ["ADMIN_DOCUMENT_NUMBER"],
+                    "pwd": hash_password(environ["ADMIN_INITIAL_PASSWORD"]),
+                },
+            )
+
+            client_id = connection.execute(
+                text(
+                    "INSERT INTO client (client_key, status_id, name, email, document_number, password_hash, birthdate) "
+                    "VALUES (:key, (SELECT id FROM client_status WHERE enumerator = 'approved'), "
+                    "'Receita do Banco', 'receita@banco.universidade', :doc, :pwd, '2000-01-01') RETURNING id"
+                ),
+                {
+                    "key": str(uuid4()),
+                    "doc": environ["ACCOUNT_DOCUMENT_NUMBER"],
+                    "pwd": hash_password(environ["ACCOUNT_PASSWORD"]),
+                },
+            ).scalar_one()
+
+            connection.execute(
+                text(
+                    "INSERT INTO account (account_key, balance, client_id, status_id) "
+                    "VALUES (:key, 0, :client_id, (SELECT id FROM account_status WHERE enumerator = 'active'))"
+                ),
+                {"key": environ["REVENUE_ACCOUNT_KEY"], "client_id": client_id},
+            )

@@ -1,331 +1,329 @@
 from uuid import uuid4
 
-from tests.utils import DbUtils, PayloadGenerator, RequestGenerator
+import pytest
+
+from tests.utils import DbUtils, ObjectGenerator, PayloadGenerator, RequestGenerator
+from tests.utils.markers import known_bug
 
 
 def extract_keys(response: dict) -> list:
     """As chaves da pagina, na ordem em que a API devolveu."""
-    client_keys = []
-    for client in response["data"]:
-        client_keys.append(client["client_key"])
-    return client_keys
+    return [client["client_key"] for client in response["data"]]
+
+
+class TestClientsAccess:
+    def test_client_cannot_list_clients(self):
+        _client, token = ObjectGenerator.create_authenticated_client()
+
+        status, response = RequestGenerator.GET_clients(token)
+
+        assert status == 403
+        assert response["code"] == "QIT003006"
+
+    def test_requires_authentication(self):
+        status, response = RequestGenerator.GET_clients(None)
+
+        assert status == 401
+        assert response["code"] == "QIT003002"
 
 
 class TestClients:
-    def test_get_pages(self):
+    def test_get_pages(self, operator_token):
         DbUtils.rollback()
 
-        # Um payload novo por entidade, e nao o mesmo tres vezes: cada
-        # cadastro precisa do proprio CPF e do proprio e-mail, senao o
-        # segundo POST bate na regra de duplicidade do controller.
-        for _entidade in range(3):
-            payload = PayloadGenerator.create_client_payload()
-            status, response = RequestGenerator.POST_client(payload)
-            assert status == 201
-
-        status, response = RequestGenerator.GET_clients()
+        # Depois do rollback sobra so o que o seed repoe: o cliente da conta
+        # de receita do banco. Medimos o ponto de partida em vez de supor.
+        status, response = RequestGenerator.GET_clients(operator_token)
         assert status == 200
-        assert len(response["data"]) == 3
-        assert response["is_last_page"] is True
+        baseline = len(response["data"])
 
-        status, response = RequestGenerator.GET_clients({"limit": 2})
+        # Um payload novo por entidade: cada cadastro precisa do proprio
+        # CPF e do proprio e-mail, senao bate na regra de duplicidade.
+        for _entidade in range(3):
+            status, _response = RequestGenerator.POST_client(PayloadGenerator.create_client_payload())
+            assert status == 201
+        total = baseline + 3
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"limit": 100})
+        assert status == 200
+        assert len(response["data"]) == total
+        assert response["is_last_page"] is True
+        assert response["limit"] == 100
+        assert response["page"] == 0
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"limit": 2})
         assert status == 200
         assert len(response["data"]) == 2
         assert response["is_last_page"] is False
 
-        status, response = RequestGenerator.GET_clients({"limit": 2, "page": 1})
+        last_page = (total - 1) // 2
+        status, response = RequestGenerator.GET_clients(operator_token, {"limit": 2, "page": last_page})
         assert status == 200
-        assert len(response["data"]) == 1
+        assert len(response["data"]) == total - 2 * last_page
         assert response["is_last_page"] is True
 
-    def test_get_filtered(self):
+    def test_empty_database_gives_an_empty_last_page(self, operator_token):
         DbUtils.rollback()
 
-        payload = PayloadGenerator.create_client_payload()
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
+        status, response = RequestGenerator.GET_clients(operator_token)
 
-        _key1 = response["client_key"]
-
-        for _entidade in range(2):
-            payload = PayloadGenerator.create_client_payload()
-            status, response = RequestGenerator.POST_client(payload)
-            assert status == 201
-
-        new_status = "approved"
-        payload = {"status": new_status}
-
-        status, response = RequestGenerator.PUT_client(_key1, payload)
-        assert status == 202
-
-        status, response = RequestGenerator.GET_clients({"status": "approved"})
         assert status == 200
-        assert len(response["data"]) == 1
-        assert response["is_last_page"] is True
-        assert response["data"][0]["client_key"] == _key1
-
-        status, response = RequestGenerator.GET_clients({"status": "pending"})
-        assert status == 200
-        assert len(response["data"]) == 2
+        # o cliente "Receita do Banco" (conta de receita) pode existir; so exigimos pagina valida
+        assert isinstance(response["data"], list)
         assert response["is_last_page"] is True
 
-    def test_wrong_params(self):
-        status, response = RequestGenerator.GET_clients({"page": -3})
+    def test_page_exactly_full_is_the_last_page(self, operator_token):
+        """Valor limite: 3 itens com limit=3 e uma pagina cheia E a ultima (nao ha um 4o)."""
+        batch = f"Limite{uuid4().hex[:8]}"
+        for _ in range(3):
+            ObjectGenerator.create_client(name=batch)
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch, "limit": 3})
+
+        assert status == 200
+        assert len(response["data"]) == 3
+        assert response["is_last_page"] is True
+
+    def test_page_beyond_the_end_is_empty(self, operator_token):
+        batch = f"Alem{uuid4().hex[:8]}"
+        ObjectGenerator.create_client(name=batch)
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch, "page": 5})
+
+        assert status == 200
+        assert response["data"] == []
+        assert response["is_last_page"] is True
+
+    def test_get_filtered(self, operator_token):
+        DbUtils.rollback()
+
+        approved = ObjectGenerator.create_client()
+        rejected_a = ObjectGenerator.create_rejected_client()
+        rejected_b = ObjectGenerator.create_rejected_client()
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"status": "approved"})
+        assert status == 200
+        assert approved["client_key"] in extract_keys(response)
+        assert rejected_a["client_key"] not in extract_keys(response)
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"status": "rejected"})
+        assert status == 200
+        assert sorted(extract_keys(response)) == sorted([rejected_a["client_key"], rejected_b["client_key"]])
+        assert response["is_last_page"] is True
+
+    def test_wrong_params(self, operator_token):
+        for params in [{"page": -3}, {"limit": 500}, {"limit": 101}, {"limit": -1}, {"limit": "abc"}, {"page": "abc"}, {"page": 1.5}]:
+            status, response = RequestGenerator.GET_clients(operator_token, params)
+            assert status == 400, params
+            assert response["code"] == "QIT000001"
+
+    def test_limit_boundaries_are_accepted(self, operator_token):
+        for limit in [1, 100]:
+            status, response = RequestGenerator.GET_clients(operator_token, {"limit": limit})
+            assert status == 200, f"limit={limit} foi recusado"
+            assert response["limit"] == limit
+
+    @known_bug("BUG-LIMIT-ZERO", "limit=0 e aceito e devolve pagina vazia com is_last_page=false (quem pagina em laco nunca termina)")
+    def test_refuses_limit_zero(self, operator_token):
+        status, response = RequestGenerator.GET_clients(operator_token, {"limit": 0})
+
         assert status == 400
         assert response["code"] == "QIT000001"
 
-        status, response = RequestGenerator.GET_clients({"limit": 500})
-        assert status == 400
-        assert response["code"] == "QIT000001"
-
-    def test_list_does_not_carry_the_status_trail(self):
+    def test_list_does_not_carry_the_status_trail(self, operator_token):
         """A pagina traz o resumo; a historia so no GET por chave.
 
         Nao e economia de bytes: a trilha e uma segunda tabela, e
-        monta-la item a item custa uma consulta por entidade. Medido
-        com 28 entidades na pagina: 11 ms com o resumo, 45 ms com a
-        trilha junto.
-
-        Este teste e guarda de regressao — ele ja nascia verde. Troque
-        o obj_to_simplified_dict por obj_to_dict no
-        list_obj_to_list_dict e ele fica vermelho.
+        monta-la item a item custa uma consulta por entidade.
         """
         payload = PayloadGenerator.create_client_payload()
         status, response = RequestGenerator.POST_client(payload)
         assert status == 201
         created_key = response["client_key"]
 
-        status, response = RequestGenerator.GET_clients(
-            {"document_number": payload["document_number"]}
-        )
+        status, response = RequestGenerator.GET_clients(operator_token, {"document_number": payload["document_number"]})
         assert status == 200
         assert extract_keys(response) == [created_key]
-        assert "status_events" not in response["data"][0]
-        assert response["data"][0]["status"] == "pending"
+        item = response["data"][0]
+        assert "status_events" not in item
+        assert "accounts" not in item
+        assert item["status"] == "approved"
+        assert "password" not in item and "password_hash" not in item
 
-    def test_refuses_unknown_query_param(self):
+    def test_refuses_unknown_query_param(self, operator_token):
         """Nome de parametro errado e erro, nao silencio.
 
-        Este e o ganho menos obvio de validar a query string por
-        schema. Quem escreve `?stauts=pending` com a letra trocada
-        recebia 200 com a lista inteira e concluia que o filtro nao
-        funciona — porque um framework so entrega o que ele declarou, e
-        o que ele nao conhece ele ignora calado. O
+        Quem escreve `?stauts=pending` com a letra trocada recebia 200
+        com a lista inteira e concluia que o filtro nao funciona. O
         `additionalProperties: false` do schema devolve o engano.
         """
-        status, response = RequestGenerator.GET_clients({"stauts": "pending"})
+        status, response = RequestGenerator.GET_clients(operator_token, {"stauts": "pending"})
         assert status == 400
         assert response["code"] == "QIT000001"
 
-    def test_filters_by_partial_name_ignoring_case(self):
-        """Nome casa por PEDACO e ignora maiuscula/minuscula.
-
-        E o filtro que a pessoa usa quando lembra so metade do nome. Por
-        isso ele nao compara igualdade: compara conteudo. A busca abaixo
-        manda o sobrenome TODO EM MAIUSCULO de proposito — se o filtro
-        fosse sensivel a caixa, nao acharia nada.
-        """
+    def test_filters_by_partial_name_ignoring_case(self, operator_token):
+        """Nome casa por PEDACO e ignora maiuscula/minuscula."""
         unique_surname = f"Zimmerman{uuid4().hex[:8]}"
 
-        payload = PayloadGenerator.create_client_payload(name=f"Ana {unique_surname}")
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
-        matching_key = response["client_key"]
+        matching = ObjectGenerator.create_client(name=f"Ana {unique_surname}")
+        ObjectGenerator.create_client(name="Bruno Carvalho")
 
-        payload = PayloadGenerator.create_client_payload(name="Bruno Carvalho")
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
+        for term in [unique_surname.upper(), unique_surname.lower(), unique_surname[:6].upper()]:
+            status, response = RequestGenerator.GET_clients(operator_token, {"name": term})
+            assert status == 200
+            assert matching["client_key"] in extract_keys(response), f"o termo {term!r} nao achou o cliente"
 
-        status, response = RequestGenerator.GET_clients({"name": unique_surname.upper()})
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": unique_surname.upper()})
+        assert extract_keys(response) == [matching["client_key"]]
+
+    @known_bug("BUG-LIKE-WILDCARD", "o filtro de nome usa LIKE sem escapar: '%' e '_' agem como curingas (severidade baixa; regra a confirmar)")
+    def test_name_filter_treats_wildcards_literally(self, operator_token):
+        """`%` e `_` sao caracteres comuns numa busca por nome, nao curingas de SQL."""
+        batch = f"Coringa{uuid4().hex[:8]}"
+        ObjectGenerator.create_client(name=f"{batch} Silva")
+
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": f"{batch}%Silva"})
+
         assert status == 200
-        assert extract_keys(response) == [matching_key]
+        assert response["data"] == []
 
-    def test_filters_by_exact_email_and_document_number(self):
-        """E-mail e CPF casam por IGUALDADE, nao por pedaco.
+    def test_filters_by_exact_email_and_document_number(self, operator_token):
+        """E-mail e CPF casam por IGUALDADE, nao por pedaco."""
+        client = ObjectGenerator.create_client()
 
-        A ultima busca manda so o comeco do e-mail. Se o filtro fosse
-        parcial como o de nome, ela acharia o cadastro — e e exatamente
-        isso que o teste proibe.
-        """
-        payload = PayloadGenerator.create_client_payload()
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
-        created_key = response["client_key"]
-
-        status, response = RequestGenerator.GET_clients({"email": payload["email"]})
+        status, response = RequestGenerator.GET_clients(operator_token, {"email": client["email"]})
         assert status == 200
-        assert extract_keys(response) == [created_key]
+        assert extract_keys(response) == [client["client_key"]]
 
-        status, response = RequestGenerator.GET_clients(
-            {"document_number": payload["document_number"]}
-        )
+        status, response = RequestGenerator.GET_clients(operator_token, {"document_number": client["document_number"]})
         assert status == 200
-        assert extract_keys(response) == [created_key]
+        assert extract_keys(response) == [client["client_key"]]
 
-        status, response = RequestGenerator.GET_clients({"email": payload["email"][:10]})
+        status, response = RequestGenerator.GET_clients(operator_token, {"email": client["email"][:10]})
         assert status == 200
-        assert created_key not in extract_keys(response)
+        assert client["client_key"] not in extract_keys(response)
 
-    def test_filters_by_inclusive_birthdate_range(self):
+    def test_filter_by_unknown_document_number_is_empty(self, operator_token):
+        status, response = RequestGenerator.GET_clients(operator_token, {"document_number": "000.000.000-00"})
+
+        assert status == 200
+        assert response["data"] == []
+        assert response["is_last_page"] is True
+
+    def test_refuses_malformed_document_number_filter(self, operator_token):
+        status, response = RequestGenerator.GET_clients(operator_token, {"document_number": "12345"})
+
+        assert status == 400
+        assert response["code"] == "QIT000001"
+
+    def test_filters_by_inclusive_birthdate_range(self, operator_token):
         """As duas pontas do intervalo ENTRAM no resultado.
 
-        Os dois nascimentos do meio sao exatamente as bordas pedidas. Se
-        o filtro usasse > e < no lugar de >= e <=, o resultado viria
-        vazio — e esse e o erro classico que este teste existe pra pegar.
-
-        O filtro de nome entra junto so pra limitar a busca as entidades
-        deste teste: sem ele, cadastros de outras rodadas com a mesma
-        data apareceriam no meio.
+        Se o filtro usasse > e < no lugar de >= e <=, o resultado viria
+        vazio — o erro classico que este teste existe pra pegar.
         """
         family_name = f"Bernoulli{uuid4().hex[:8]}"
         birthdates = ["1931-01-01", "1931-01-02", "1931-01-03", "1931-01-04"]
 
         created_keys = []
         for birthdate in birthdates:
-            payload = PayloadGenerator.create_client_payload(
-                name=family_name, birthdate=birthdate
-            )
-            status, response = RequestGenerator.POST_client(payload)
-            assert status == 201
-            created_keys.append(response["client_key"])
+            created_keys.append(ObjectGenerator.create_client(name=family_name, birthdate=birthdate)["client_key"])
 
         status, response = RequestGenerator.GET_clients(
-            {"name": family_name, "birthdate_from": "1931-01-02", "birthdate_to": "1931-01-03"}
+            operator_token, {"name": family_name, "birthdate_from": "1931-01-02", "birthdate_to": "1931-01-03"}
         )
         assert status == 200
         assert sorted(extract_keys(response)) == sorted([created_keys[1], created_keys[2]])
 
-    def test_combines_filters_with_and(self):
-        """Dois filtros juntos ESTREITAM o resultado, nao o alargam.
+    def test_birthdate_range_with_only_one_end(self, operator_token):
+        family_name = f"Euler{uuid4().hex[:8]}"
+        old = ObjectGenerator.create_client(name=family_name, birthdate="1940-06-01")["client_key"]
+        young = ObjectGenerator.create_client(name=family_name, birthdate="1980-06-01")["client_key"]
 
-        Os dois cadastros tem o mesmo nome; so um nasceu depois do corte.
-        Se os filtros fossem somados com OU, os dois voltariam.
-        """
+        _status, only_from = RequestGenerator.GET_clients(operator_token, {"name": family_name, "birthdate_from": "1960-01-01"})
+        _status, only_to = RequestGenerator.GET_clients(operator_token, {"name": family_name, "birthdate_to": "1960-01-01"})
+
+        assert extract_keys(only_from) == [young]
+        assert extract_keys(only_to) == [old]
+
+    def test_combines_filters_with_and(self, operator_token):
+        """Dois filtros juntos ESTREITAM o resultado, nao o alargam."""
         team_name = f"Curie{uuid4().hex[:8]}"
 
-        payload = PayloadGenerator.create_client_payload(
-            name=team_name, birthdate="1940-03-01"
-        )
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
+        ObjectGenerator.create_client(name=team_name, birthdate="1940-03-01")
+        younger = ObjectGenerator.create_client(name=team_name, birthdate="1960-03-01")
 
-        payload = PayloadGenerator.create_client_payload(
-            name=team_name, birthdate="1960-03-01"
-        )
-        status, response = RequestGenerator.POST_client(payload)
-        assert status == 201
-        younger_key = response["client_key"]
-
-        status, response = RequestGenerator.GET_clients(
-            {"name": team_name, "birthdate_from": "1950-01-01"}
-        )
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": team_name, "birthdate_from": "1950-01-01"})
         assert status == 200
-        assert extract_keys(response) == [younger_key]
+        assert extract_keys(response) == [younger["client_key"]]
 
-    def test_lists_newest_first_and_pages_do_not_overlap(self):
-        """A pagina tem ORDEM, e por isso paginar nao repete nem pula.
-
-        Sem um ORDER BY, `limit` e `offset` respondem sobre um conjunto
-        que o banco pode devolver em qualquer ordem — e "os 2 primeiros"
-        seguido de "pulando 2" chega a repetir uma linha e sumir com
-        outra. Nao e teoria: e o que o SQL permite quando ninguem manda
-        ordenar.
-
-        As tres entidades nascem em sequencia, entao a mais recente e a
-        ultima criada.
-        """
+    def test_lists_newest_first_and_pages_do_not_overlap(self, operator_token):
+        """A pagina tem ORDEM, e por isso paginar nao repete nem pula."""
         batch_name = f"Noether{uuid4().hex[:8]}"
 
-        created_keys = []
-        for _entidade in range(3):
-            payload = PayloadGenerator.create_client_payload(name=batch_name)
-            status, response = RequestGenerator.POST_client(payload)
-            assert status == 201
-            created_keys.append(response["client_key"])
-
+        created_keys = [ObjectGenerator.create_client(name=batch_name)["client_key"] for _ in range(3)]
         created_keys.reverse()
 
-        status, response = RequestGenerator.GET_clients({"name": batch_name, "limit": 2})
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch_name, "limit": 2})
         assert status == 200
         assert extract_keys(response) == created_keys[:2]
         assert response["is_last_page"] is False
 
-        status, response = RequestGenerator.GET_clients(
-            {"name": batch_name, "limit": 2, "page": 1}
-        )
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch_name, "limit": 2, "page": 1})
         assert status == 200
         assert extract_keys(response) == created_keys[2:]
         assert response["is_last_page"] is True
 
-    def test_refuses_inverted_birthdate_range(self):
-        """Intervalo de cabeca pra baixo e erro, nao lista vazia.
-
-        Pedir de 2000 ate 1990 nunca pode dar resultado — e quando uma
-        pergunta nao tem como ser respondida, devolver zero linhas mente:
-        parece que a busca rodou e nao achou ninguem. O 400 diz a verdade,
-        que a pergunta e que estava errada.
-        """
+    def test_refuses_inverted_birthdate_range(self, operator_token):
+        """Intervalo de cabeca pra baixo e erro, nao lista vazia."""
         status, response = RequestGenerator.GET_clients(
-            {"birthdate_from": "2000-01-01", "birthdate_to": "1990-01-01"}
+            operator_token, {"birthdate_from": "2000-01-01", "birthdate_to": "1990-01-01"}
         )
         assert status == 400
         assert response["code"] == "QIT000010"
 
-    def test_filters_by_more_than_one_status(self):
+    def test_refuses_impossible_birthdate_filter(self, operator_token):
+        status, response = RequestGenerator.GET_clients(operator_token, {"birthdate_from": "2025-02-30"})
+
+        assert status == 422
+        assert response["code"] == "QIT001007"
+
+    def test_filters_by_more_than_one_status(self, operator_token):
         """O filtro de status aceita VARIOS valores, somados com OU.
 
-        Repare que este filtro se comporta ao contrario dos outros: name
-        junto com email ESTREITA a busca (os dois precisam bater), mas
-        dois status ALARGAM (basta um bater). Faz sentido pensando no que
-        a pessoa quer dizer: "me mostra o que deu errado E o que deu
-        certo" nao e um pedido impossivel — sao dois baldes do mesmo
-        campo, e uma entidade so esta num deles.
+        Ao contrario dos outros filtros, dois status ALARGAM a busca (basta
+        um bater): uma entidade so esta num dos baldes.
         """
         batch_name = f"Kovalevskaya{uuid4().hex[:8]}"
+        approved = ObjectGenerator.create_client(name=batch_name)
+        rejected = ObjectGenerator.create_rejected_client()
 
-        created_keys = []
-        for _entidade in range(3):
-            payload = PayloadGenerator.create_client_payload(name=batch_name)
-            status, response = RequestGenerator.POST_client(payload)
-            assert status == 201
-            created_keys.append(response["client_key"])
-
-        status, response = RequestGenerator.PUT_client(
-            created_keys[0], PayloadGenerator.create_new_status_payload("approved")
-        )
-        assert status == 202
-
-        status, response = RequestGenerator.PUT_client(
-            created_keys[1], PayloadGenerator.create_new_status_payload("failed")
-        )
-        assert status == 202
-
-        status, response = RequestGenerator.GET_clients(
-            {"name": batch_name, "status": ["approved", "failed"]}
-        )
+        status, response = RequestGenerator.GET_clients(operator_token, {"status": ["approved", "rejected"], "limit": 100})
         assert status == 200
-        assert sorted(extract_keys(response)) == sorted([created_keys[0], created_keys[1]])
+        keys = extract_keys(response)
+        assert approved["client_key"] in keys
+        assert rejected["client_key"] in keys
 
-        status, response = RequestGenerator.GET_clients(
-            {"name": batch_name, "status": ["pending"]}
-        )
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch_name, "status": ["rejected"]})
         assert status == 200
-        assert extract_keys(response) == [created_keys[2]]
+        assert response["data"] == []
 
-    def test_refuses_unknown_status_filter(self):
-        """Status que nao existe e erro, nao lista vazia.
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch_name, "status": ["approved"]})
+        assert extract_keys(response) == [approved["client_key"]]
 
-        Quem recusa e o `enum` do src/schemas/get_clients.json,
-        o mesmo mecanismo que confere o corpo de um POST. Uma lista
-        vazia mentiria aqui, dizendo que a busca rodou e nao achou
-        ninguem.
-        """
-        status, response = RequestGenerator.GET_clients({"status": ["status_que_nao_existe"]})
-        assert status == 400
-        assert response["code"] == "QIT000001"
+    def test_pending_filter_finds_nobody_after_signup(self, operator_token):
+        """Ninguem fica em `pending`: o cadastro ja sai aprovado ou recusado."""
+        batch_name = f"Pendente{uuid4().hex[:8]}"
+        ObjectGenerator.create_client(name=batch_name)
 
-        status, response = RequestGenerator.GET_clients(
-            {"status": ["pending", "status_que_nao_existe"]}
-        )
-        assert status == 400
-        assert response["code"] == "QIT000001"
+        status, response = RequestGenerator.GET_clients(operator_token, {"name": batch_name, "status": "pending"})
+
+        assert status == 200
+        assert response["data"] == []
+
+    def test_refuses_unknown_status_filter(self, operator_token):
+        """Status que nao existe e erro, nao lista vazia."""
+        for statuses in [["status_que_nao_existe"], ["pending", "status_que_nao_existe"], ["failed"], ["APPROVED"]]:
+            status, response = RequestGenerator.GET_clients(operator_token, {"status": statuses})
+            assert status == 400, statuses
+            assert response["code"] == "QIT000001"

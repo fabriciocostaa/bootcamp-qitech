@@ -1,93 +1,162 @@
-from tests.utils.object_generator import ObjectGenerator
-from tests.utils.request_generator import RequestGenerator
-import datetime
-from src.models.transaction_type import TransactionType
-import uuid
+from uuid import uuid4
 
-class TestBankOperations:
-    def test_deposit_success(self):
-        # Create a client and an account
-        client, jwt_token = ObjectGenerator.create_authenticated_client()
-        response_status, response_json = RequestGenerator.GET_client(client["client_key"], jwt_token)
-        
-        assert response_status == 200
-        
-        account = response_json["account"]
-        amount = 2000
-        idempotency_key = str(uuid.uuid4())
+import pytest
 
-        # Perform a deposit
-        response_status, response_json = RequestGenerator.POST_account_deposit(
-            account_key=account.account_key,
-            jwt_token=client.jwt_token,
-            idempotency_key=idempotency_key,
-            deposit_payload=amount
+from tests.utils import ObjectGenerator, RequestGenerator
+from tests.utils.markers import known_bug
+from tests.utils.money import to_cents
+
+
+def deposit(client, amount, key=None, token=None):
+    return RequestGenerator.POST_account_deposit(
+        client["account_key"], token or client["token"], key or str(uuid4()), amount
+    )
+
+
+class TestDeposit:
+    def test_deposit_credits_the_account(self):
+        client = ObjectGenerator.create_active_client()
+
+        status, response = deposit(client, 5000)
+
+        assert status == 200
+        assert sorted(response.keys()) == ["amount", "created_at", "fee", "kind", "operation_key"]
+        assert response["kind"] == "deposit"
+        assert response["amount"] == "50.00"
+        assert response["fee"] == "0.00"
+        assert response["operation_key"]
+        assert ObjectGenerator.get_balance(client) == 5000
+
+    def test_smallest_amount_is_one_cent(self):
+        """Valor limite inferior: 1 centavo entra."""
+        client = ObjectGenerator.create_active_client()
+
+        status, response = deposit(client, 1)
+
+        assert status == 200
+        assert response["amount"] == "0.01"
+        assert ObjectGenerator.get_balance(client) == 1
+
+    def test_deposits_accumulate(self):
+        client = ObjectGenerator.create_active_client()
+
+        for amount in [100, 250, 4000]:
+            status, _response = deposit(client, amount)
+            assert status == 200
+
+        assert ObjectGenerator.get_balance(client) == 4350
+
+    def test_large_amount_is_accepted(self):
+        client = ObjectGenerator.create_active_client()
+
+        status, _response = deposit(client, 10**12)
+
+        assert status == 200
+        assert ObjectGenerator.get_balance(client) == 10**12
+
+    @known_bug("BUG-AMOUNT-OVERFLOW", "amount acima do limite do banco (2**63) devolve 500; deveria ser 400/422")
+    def test_absurdly_large_amount_is_refused_not_a_500(self):
+        client = ObjectGenerator.create_active_client()
+
+        status, _response = deposit(client, 2**63)
+
+        assert status in (400, 422)
+        assert ObjectGenerator.get_balance(client) == 0
+
+    def test_missing_idempotency_key(self):
+        client = ObjectGenerator.create_active_client()
+
+        status, response = RequestGenerator.POST_account_deposit(client["account_key"], client["token"], None, 100)
+
+        assert status == 400
+        assert response["code"] == "QIT003008"
+        assert ObjectGenerator.get_balance(client) == 0
+
+    def test_unknown_account(self):
+        client = ObjectGenerator.create_active_client()
+
+        status, response = RequestGenerator.POST_account_deposit(str(uuid4()), client["token"], str(uuid4()), 100)
+
+        assert status == 404
+        assert response["code"] == "QIT002001"
+
+    def test_requires_authentication(self):
+        client = ObjectGenerator.create_active_client()
+
+        status, response = RequestGenerator.POST_account_deposit(client["account_key"], None, str(uuid4()), 100)
+
+        assert status == 401
+        assert response["code"] == "QIT003002"
+        assert ObjectGenerator.get_balance(client) == 0
+
+    @known_bug("BUG-OPERATOR-ON-CLIENT-ROUTE", "token de operador numa rota de cliente devolve 500; deveria ser 401/403")
+    def test_operator_token_is_refused_cleanly(self, operator_token):
+        client = ObjectGenerator.create_active_client()
+
+        status, _response = RequestGenerator.POST_account_deposit(
+            client["account_key"], operator_token, str(uuid4()), 100
         )
 
-        # Check the response status code
-        assert response_status == 200
+        assert status in (401, 403)
 
-        # Check the updated account balance
-        #assert response_json["operation_key"] == 
-        assert response_json["kind"] == TransactionType.DEPOSIT
-        assert response_json["amount"] == amount
-        assert response_json["fee"] == 0
-        assert response_json["created_at"] == datetime.datetime.now()
+    def test_refuses_extra_fields_and_missing_amount(self):
+        client = ObjectGenerator.create_active_client()
+        headers = RequestGenerator.build_headers(client["token"], str(uuid4()))
+        path = f"/account/{client['account_key']}/deposit"
 
-    def test_withdraw_success(self):
-        # 1. Preparação: Para o saque funcionar na caixa preta, precisamos criar a conta E depositar antes
-        client, jwt_token = ObjectGenerator.create_authenticated_client()
-        _, client_data = RequestGenerator.GET_client(client["client_key"], jwt_token)
-        account = client_data["account"]
-        
-        # Garante saldo inicial via API
-        RequestGenerator.POST_account_deposit(account.account_key, jwt_token, str(uuid.uuid4()), amount=2000)
+        for body in [{}, {"amount": 100, "extra": 1}, {"valor": 100}]:
+            response = RequestGenerator.send_raw("POST", path, headers=headers, payload=body)
+            assert response.response_status == 400, body
+            assert response.response_json["code"] == "QIT000001"
 
-        # 2. Execução do Saque
-        withdraw_amount = 500
-        idempotency_key = str(uuid.uuid4())
-        
-        response_status, response_json = RequestGenerator.POST_account_withdraw(
-            account_key=account.account_key,
-            jwt_token=jwt_token,
-            idempotency_key=idempotency_key,
-            withdraw_payload=withdraw_amount
+    def test_refuses_body_that_is_not_json(self):
+        client = ObjectGenerator.create_active_client()
+        headers = {**RequestGenerator.build_headers(client["token"], str(uuid4())), "Content-Type": "application/json"}
+
+        response = RequestGenerator.send_raw(
+            "POST", f"/account/{client['account_key']}/deposit", headers=headers, data="nao e json"
         )
 
-        # 3. Validações
-        assert response_status == 200
-        assert response_json["kind"] == TransactionType.WITHDRAW
-        assert response_json["amount"] == withdraw_amount
-        # Se sua API atualizar o saldo no retorno, valide também (ex: balance == 1500)
+        assert response.response_status == 400
+        assert response.response_json["code"] == "QIT000001"
 
 
-    def test_transfer_success(self):
-        # 1. Preparação: Precisamos de DUAS contas (Origem com saldo e Destino)
-        client_origin, jwt_token_origin = ObjectGenerator.create_authenticated_client()
-        _, data_origin = RequestGenerator.GET_client(client_origin["client_key"], jwt_token_origin)
-        account_origin = data_origin["account"]
-        
-        # Deposita na conta de origem
-        RequestGenerator.POST_account_deposit(account_origin.account_key, jwt_token_origin, str(uuid.uuid4()), amount=1000)
+class TestAmountValidation:
+    """Particao de equivalencia do `amount` — a MESMA regra em deposito, saque e transferencia."""
 
-        # Cria conta de destino
-        client_dest, jwt_token_dest = ObjectGenerator.create_authenticated_client()
-        _, data_dest = RequestGenerator.GET_client(client_dest["client_key"], jwt_token_dest)
-        account_dest = data_dest["account"]
+    INVALID_AMOUNTS = [0, -1, -100, 10.5, 0.5, "100", "", None, True, [100], {"v": 1}]
 
-        # 2. Execução da Transferência
-        transfer_amount = 400
-        idempotency_key = str(uuid.uuid4())
+    @pytest.mark.parametrize("amount", INVALID_AMOUNTS, ids=lambda v: repr(v))
+    def test_deposit_refuses_invalid_amount(self, amount):
+        client = ObjectGenerator.create_active_client()
 
-        response_status, response_json = RequestGenerator.POST_account_transfer(
-            account_key_origin=account_origin.account_key,
-            account_key_destination=account_dest.account_key,
-            jwt_token=jwt_token_origin, # Quem transfere é a origem
-            idempotency_key=idempotency_key,
-            transfer_payload=transfer_amount
+        status, response = deposit(client, amount)
+
+        assert status == 400, f"deposito aceitou amount={amount!r}"
+        assert response["code"] == "QIT000001"
+        assert ObjectGenerator.get_balance(client) == 0
+
+    @pytest.mark.parametrize("amount", INVALID_AMOUNTS, ids=lambda v: repr(v))
+    def test_withdraw_refuses_invalid_amount(self, amount):
+        client = ObjectGenerator.create_active_client(balance=1000)
+
+        status, response = RequestGenerator.POST_account_withdraw(
+            client["account_key"], client["token"], str(uuid4()), amount
         )
 
-        # 3. Validações
-        assert response_status == 200
-        assert response_json["kind"] == TransactionType.TRANSFER
-        assert response_json["amount"] == transfer_amount
+        assert status == 400, f"saque aceitou amount={amount!r}"
+        assert response["code"] == "QIT000001"
+        assert ObjectGenerator.get_balance(client) == 1000
+
+    @pytest.mark.parametrize("amount", [0, -1, "100", None, True], ids=lambda v: repr(v))
+    def test_transfer_refuses_invalid_amount(self, amount):
+        origin = ObjectGenerator.create_active_client(balance=1000)
+        destination = ObjectGenerator.create_active_client()
+
+        status, response = RequestGenerator.POST_account_transfer(
+            origin["account_key"], destination["account_key"], origin["token"], str(uuid4()), amount
+        )
+
+        assert status == 400, f"transferencia aceitou amount={amount!r}"
+        assert response["code"] == "QIT000001"
+        assert ObjectGenerator.get_balance(origin) == 1000
