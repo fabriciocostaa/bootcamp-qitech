@@ -1,7 +1,6 @@
 from controllers.base_controller import BaseController
 from connectors.risk_connector import RiskConnector
-from dtos.credit_dto import creditDTO
-from errors import NotFoundSampleEntity
+from errors import NotFoundClient
 from repositories import ClientRepository
 from repositories import CreditRepository
 from repositories import AccountRepository 
@@ -24,7 +23,7 @@ class CreditController(BaseController):
 
         client = self.client_repository.get_by_key(client_key)
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
         risk_connector = RiskConnector()
         risk_response = risk_connector.get_risk_profile(client.document_number)
@@ -94,7 +93,7 @@ class CreditController(BaseController):
 
         client = self.client_repository.get_by_key(client_key)
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
         credit_line = self.credit_repository.get_by_client_id(client.id)
         if not credit_line or credit_line.status != "ACTIVE":
@@ -173,7 +172,7 @@ class CreditController(BaseController):
 
         client = self.client_repository.get_by_key(client_key)
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
     
         account = self.account_repository.get_by_client_id_for_update(client.id)

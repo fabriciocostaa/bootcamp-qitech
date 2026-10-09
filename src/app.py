@@ -131,24 +131,6 @@ def create_app() -> FastAPI:
     auth_resource = AuthResource()
     credit_resource = CreditResource()
 
-    application.add_api_route(
-        "/client/{client_key}/credit",
-        credit_resource.on_post,
-        methods=["POST"],
-    )
-
-    application.add_api_route(
-        "/client/{client_key}/credit/withdraw",
-        credit_resource.on_post_withdraw,
-        methods=["POST"],
-    )
-
-    application.add_api_route(
-        "/client/{client_key}/invoice/pay",
-        credit_resource.on_post_pay_invoice,
-        methods=["POST"],
-    )
-
 
     application.add_api_route("/", health_check_resource.on_get_home, methods=["GET"])
     application.add_api_route(
@@ -218,6 +200,24 @@ def create_app() -> FastAPI:
     application.add_api_route(
         "/auth/logout",
         auth_resource.on_post_logout,
+        methods=["POST"],
+    )
+
+    application.add_api_route(
+        "/client/{client_key}/credit",
+        credit_resource.on_post,
+        methods=["POST"],
+    )
+
+    application.add_api_route(
+        "/client/{client_key}/credit/withdraw",
+        credit_resource.on_post_withdraw,
+        methods=["POST"],
+    )
+
+    application.add_api_route(
+        "/client/{client_key}/invoice/pay",
+        credit_resource.on_post_pay_invoice,
         methods=["POST"],
     )
 
