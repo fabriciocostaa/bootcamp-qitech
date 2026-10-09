@@ -1,6 +1,6 @@
 from controllers.base_controller import BaseController
-from repositories import AccountRepository, ClientRepository
-from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate, AccountNotOwnedByClient, IdempotencyKeyConflict
+from repositories import AccountRepository, ClientRepository, OperatorRepository
+from errors import NotFoundAccount, InvalidAmount, AccountNotActive, InsufficientBalance, SameAccountTransfer, InvalidDate, AccountNotOwnedByClient, IdempotencyKeyConflict, AccountInvalidStatus
 from models import AccountStatus, TransactionType, Account, OperationKind
 from datetime import date
 from dtos.account_dto import accountDTO
@@ -13,6 +13,25 @@ class AccountController(BaseController):
         super().__init__(__name__)
         self.account_repository = AccountRepository(self.context) 
         self.client_repository = ClientRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
+        self.operator_repository = OperatorRepository(self.context)
+
+    def get_status_history(self, account_key: str) -> dict:
+        self.logger.debug(f"Buscando histórico da conta {account_key}")
+
+        # Geralmente histórico de conta financeira só o próprio cliente ou um operador pode ver
+        account = self.account_repository.get_by_key(account_key)
+        if account is None:
+            raise NotFoundAccount(account_key) # Lembre-se de importar ou criar este erro
+
+        is_owner = account.client.client_key == self.context.authenticated_client_key
+        is_operator = self.context.authenticated_operator_key is not None
+
+        if not is_owner and not is_operator:
+            raise AccountNotOwnedByClient()
+
+        response = accountDTO.status_history_to_list(account.status_events)
+
+        return response
 
     def _check_account_ownership(self, account: Account) -> None:
         if account.client.client_key != self.context.authenticated_client_key:
@@ -227,3 +246,47 @@ class AccountController(BaseController):
             return date.fromisoformat(raw_date)
         except ValueError:
             raise InvalidDate(f"Invalid date format: {raw_date}. Expected format: YYYY-MM-DD")
+
+    def update_status(self, account_key: str, new_status: str) -> dict:
+        """
+        Permite que um operador mude o status de uma conta (ex: BLOQUEAR ou ATIVAR).
+        """
+        # 1. Garante que quem está chamando é um operador
+        self.require_operator() 
+        
+        # 2. Busca a conta travando a linha (for_update) para evitar que
+        # ocorram transações enquanto o status está sendo mudado
+        account = self.account_repository.get_by_key_for_update(account_key)
+        
+        if account is None:
+            raise NotFoundAccount(account_key)
+
+        # 3. Busca o operador
+        operator_key = self.operator_key()
+        operator = self.operator_repository.get_by_key(operator_key) 
+
+        # 4. Verifica se a mudança faz sentido (Regras de Negócio)
+        self._check_status_can_change(account, new_status)
+
+        # 5. Efetua a mudança no banco através do repositório
+        self.account_repository.update_status(account, new_status, operator)
+        self.session.commit()
+
+        # 6. Retorna o DTO da conta atualizada
+        return accountDTO.only_obj_key(account)
+
+
+    def _check_status_can_change(self, account: Account, new_status: str) -> None:
+        """
+        As regras do que 'pode' e 'não pode' na mudança de status da conta.
+        """
+        old_status = account.status.enumerator
+        print(old_status)
+
+        # Se a conta já está no status que o operador pediu, não faz sentido mudar
+        if old_status == new_status:
+            raise AccountInvalidStatus(old_status, new_status)
+
+        # Uma vez encerrada, é o fim da vida dela.
+        if old_status == "CLOSED": 
+            raise AccountInvalidStatus(old_status, new_status)

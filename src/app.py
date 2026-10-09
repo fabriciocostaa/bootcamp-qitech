@@ -162,6 +162,18 @@ def create_app() -> FastAPI:
     )
 
     application.add_api_route(
+        "/account/{account_key}/status-events",
+        account_resource.on_get_status_events,
+        methods=["GET"],
+    )
+
+    application.add_api_route(
+        "/client/{client_key}/status-events",
+        client_resource.on_get_status_events,
+        methods=["GET"],
+    )
+
+    application.add_api_route(
         "/account/{account_key}/deposit",
         account_resource.on_post_deposit,
         methods=["POST"],
@@ -183,6 +195,12 @@ def create_app() -> FastAPI:
         "/account/{account_key}/extract",
         account_resource.on_get_extract,
         methods=["GET"],
+    )
+
+    application.add_api_route(
+    "/account/{account_key}",
+    account_resource.on_patch_by_key,
+    methods=["PATCH"],
     )
 
     application.add_api_route(

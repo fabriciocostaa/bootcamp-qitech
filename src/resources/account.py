@@ -9,6 +9,15 @@ from errors import IdempotencyKeyMissing
 
 class AccountResource:
 
+    def on_get_status_events(self, account_key: str) -> JSONResponse:
+        controller = AccountController()
+        account = controller.get_status_history(account_key)
+
+        return JSONResponse(
+            content=jsonable_encoder(account),
+            status_code=http_status.HTTP_200_OK,
+        )
+
     @SchemaHandler.validate("post_deposit.json")
     def on_post_deposit(self, account_key:str, payload:dict, request: Request) -> JSONResponse:
         controller = AccountController()
@@ -80,4 +89,14 @@ class AccountResource:
         return JSONResponse(
             content=jsonable_encoder(page_envelope),
             status_code=http_status.HTTP_200_OK,
+        )
+
+    @SchemaHandler.validate("patch_account.json")
+    def on_patch_by_key(self, account_key: str, payload: dict):
+        controller = AccountController()
+        account = controller.update_status(account_key, payload["status"])
+
+        return JSONResponse(
+            content=jsonable_encoder(account),
+            status_code=http_status.HTTP_202_ACCEPTED,
         )

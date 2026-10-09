@@ -72,6 +72,7 @@ CREATE TABLE account_status_event(
     id                              SERIAL PRIMARY KEY,
     account_id                      INTEGER NOT NULL REFERENCES account(id),
     status_id                       INTEGER NOT NULL REFERENCES account_status(id),
+    operator_id                     INTEGER REFERENCES operator(id),
     event_datetime                  TIMESTAMP NOT NULL,
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
 );

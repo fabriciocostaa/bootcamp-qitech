@@ -171,6 +171,16 @@ class InvalidDate(QIException):
         translation = f"A data de início ({start_date}) é posterior à data de término ({end_date})."
         super().__init__(title, self.code, http_status, description, translation)
 
+class AccountInvalidStatus(QIException):
+    code = "QIT002007"
+
+    def __init__(self, old_status, new_status) -> None:
+        title = "Account cannot change status"
+        http_status = 409
+        description = f"Account with status {old_status} cannot update to {new_status}."
+        translation = f"Essa conta com status {old_status} não pode atualizar para {new_status}."
+        super().__init__(title, self.code, http_status, description, translation)
+
 class InvalidCredentials(QIException):
     code = "QIT003001"
 

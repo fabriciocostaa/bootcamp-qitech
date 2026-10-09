@@ -40,6 +40,20 @@ class AccountRepository:
     def get_status(self, enumerator: str) -> AccountStatus:
         return self.session.query(AccountStatus).filter(AccountStatus.enumerator == enumerator).one()
 
+    def update_status(self, account: Account, new_status_enumerator: str, operator=None) -> None:
+        new_status = self.get_status(new_status_enumerator)
+        account.status = new_status
+
+        new_status_event = AccountStatusEvent()
+        new_status_event.status = new_status
+
+        if operator:
+            new_status_event.operator_id = operator.id
+
+        new_status_event.event_datetime = datetime.now()
+
+        account.status_events.append(new_status_event)
+
     def get_by_key_for_update(self, account_key: str) -> Account:
         return (
             self.session.query(Account)

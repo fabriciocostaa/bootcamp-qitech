@@ -35,6 +35,23 @@ class ClientController(BaseController):
         self.account_repository = AccountRepository(self.context)
         self.operator_repository = OperatorRepository(self.context)
 
+    def get_status_history(self, client_key: str) -> dict:
+        self.logger.debug(f"Buscando histórico do cliente {client_key}")
+
+        client = self.client_repository.get_by_key(client_key)
+        if client is None:
+            raise NotFoundClient(client_key)
+
+        # Mesma regra de segurança do seu get_by_key original
+        is_owner = client.client_key == self.context.authenticated_client_key
+        is_operator = self.context.authenticated_operator_key is not None
+
+        if not is_owner and not is_operator:
+            raise AccountNotOwnedByClient()
+
+        response = clientDTO.status_history_to_list(client.status_events)
+        return response
+
     def create(self, client_data: dict, client_ip: str = "101.0.0.1") -> dict:
         """Confere quem está entrando, e só então cria.
 

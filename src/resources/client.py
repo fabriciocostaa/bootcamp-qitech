@@ -86,6 +86,15 @@ class ClientResource:
     resposta estoura em runtime, e só naquele endpoint.
     """
 
+    def on_get_status_events(self, client_key: str) -> JSONResponse:
+        controller = ClientController()
+        client = controller.get_status_history(client_key)
+
+        return JSONResponse(
+            content=jsonable_encoder(client),
+            status_code=http_status.HTTP_200_OK,
+        )
+
     @SchemaHandler.validate("post_client.json")
     def on_post(self, payload: dict) -> JSONResponse:
         # Se o código chegou até aqui, o payload JÁ foi conferido contra

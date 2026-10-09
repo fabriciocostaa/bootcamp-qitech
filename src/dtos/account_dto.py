@@ -34,3 +34,14 @@ class accountDTO:
             "fee": f"{operation.fee/100:.2f}",
             "created_at": operation.created_at.isoformat(),
         }
+
+    @staticmethod
+    def status_history_to_list(status_events: list) -> list:
+        history = {"status_events": []}
+        for event in status_events:
+            history["status_events"].append({
+                "status": event.status.enumerator,
+                "event_datetime": event.event_datetime.isoformat(),
+                "operator_key": event.operator.operator_key if getattr(event, "operator", None) else None
+            })
+        return history

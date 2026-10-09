@@ -1,7 +1,7 @@
 from sqlalchemy import Column, ForeignKey, Integer, DateTime, func
 from sqlalchemy.orm import relationship
 from models.base import Base
-from models import Account, AccountStatus
+from models import Account, AccountStatus, Operator
 
 
 class AccountStatusEvent(Base):
@@ -10,6 +10,7 @@ class AccountStatusEvent(Base):
     id = Column(Integer, primary_key=True)
     account_id = Column(Integer, ForeignKey(Account.id), nullable=False)
     status_id = Column(Integer, ForeignKey(AccountStatus.id), nullable=False)
+    operator_id = Column(Integer, ForeignKey(Operator.id), nullable=True)
     event_datetime = Column(DateTime, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
@@ -20,3 +21,4 @@ class AccountStatusEvent(Base):
         lazy="selectin",
     )
     status = relationship("AccountStatus", foreign_keys=[status_id], lazy="selectin")
+    operator = relationship("Operator", foreign_keys=[operator_id], lazy="selectin")

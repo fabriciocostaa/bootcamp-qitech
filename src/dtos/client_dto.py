@@ -30,7 +30,6 @@ class clientDTO:
         viram resposta.
         """
         client_dto = clientDTO.obj_to_simplified_dict(client)
-        client_dto["status_events"] = []
 
         for status_event in client.status_events:
             status_event_dto = dict()
@@ -38,11 +37,8 @@ class clientDTO:
 
             if status_event.operator:
                 status_event_dto["operator_key"] = status_event.operator.operator_key
-            else:
-                status_event_dto["operator_key"] = None
             
             status_event_dto["event_datetime"] = status_event.event_datetime.isoformat()
-            client_dto["status_events"].append(status_event_dto)
 
         client_dto["accounts"] = []
         for account in client.accounts:
@@ -102,3 +98,15 @@ class clientDTO:
         dto["client_key"] = client.client_key
 
         return dto
+
+    @staticmethod
+    def status_history_to_list(status_events: list) -> list:
+        """Formata apenas a lista de histórico de status."""
+        history = {"status_events": []}
+        for event in status_events:
+            history["status_events"].append({
+                "status": event.status.enumerator,
+                "event_datetime": event.event_datetime.isoformat(),
+                "operator_key": event.operator.operator_key if getattr(event, "operator", None) else None
+            })
+        return history
