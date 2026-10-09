@@ -2,3 +2,4 @@ from repositories.client_repository import ClientRepository
 from repositories.account_repository import AccountRepository
 from repositories.operator_repository import OperatorRepository
 from repositories.credit_repository import CreditRepository
+from repositories.token_repository import TokenRepository

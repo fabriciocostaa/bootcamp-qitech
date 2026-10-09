@@ -3,12 +3,8 @@
     "method": "POST",
     "urlPath": "/kyc/verify",
     "bodyPatterns": [
-      {
-        "matchesJsonPath": "$.cpf"
-      },
-      {
-        "matchesJsonPath": "$.full_name"
-      }
+      { "matchesJsonPath": "$.cpf" },
+      { "matchesJsonPath": "$.full_name" }
     ]
   },
   "response": {
@@ -16,10 +12,7 @@
     "headers": {
       "Content-Type": "application/json"
     },
-    "jsonBody": {
-      "status": "approved",
-      "provider": "Federal_Database_Mock",
-      "message": "Identidade confirmada com sucesso."
-    }
+    "transformers": ["response-template"],
+    "body": "{ \"status\": \"{{#if (contains (jsonPath request.body '$.cpf') '99')}}rejected{{else}}approved{{/if}}\", \"provider\": \"Federal_Database_Mock\", \"message\": \"{{#if (contains (jsonPath request.body '$.cpf') '99')}}CPF com irregularidades cadastrais ou suspeita de fraude.{{else}}Identidade confirmada com sucesso.{{/if}}\" }"
   }
 }

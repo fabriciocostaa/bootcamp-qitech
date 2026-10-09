@@ -11,10 +11,9 @@ from errors import (
     InvalidBirthdate,
     InvalidDocumentNumber,
     InvalidParameter,
-    NotFoundSampleEntity,
-    SampleEntityFinalStatus,
-    UnderageSampleEntity,
-    OperatorRequired,
+    NotFoundClient,
+    ClientFinalStatus,
+    UnderageClient,
     AccountNotOwnedByClient
 )
 from models import Client, ClientStatus
@@ -25,7 +24,6 @@ from utils.document_number import is_valid_cpf
 # do máximo ele é CRIADO, mas já em "failed" — são desfechos diferentes,
 # e o create lá embaixo mostra a diferença em duas linhas.
 MINIMUM_AGE = 18
-MAXIMUM_AGE = 80
 
 
 class ClientController(BaseController):
@@ -64,60 +62,52 @@ class ClientController(BaseController):
         age = self._age_in_years(birthdate)
 
         if age < MINIMUM_AGE:
-            raise UnderageSampleEntity(age, MINIMUM_AGE)
+            raise UnderageClient(age, MINIMUM_AGE)
 
         client = self.client_repository.create(client_data=client_data)
 
-        # Passar da idade máxima não impede o cadastro: ele nasce em
-        # "failed". É a diferença entre recusar o pedido e aceitá-lo com
-        # outro desfecho — e as duas regras moram lado a lado de
-        # propósito, pra que a diferença fique à vista.
-        if age > MAXIMUM_AGE:
-            self.client_repository.update_status(client, ClientStatus.REJECTED)
-        else:
-            self.client_repository.update_status(client, ClientStatus.PENDING)
-            self.session.flush()
+        self.client_repository.update_status(client, ClientStatus.PENDING)
+        self.session.flush()
 
-            kyc_connector = KYCConnector()
-            antifraud_connector = AntifraudConnector()
+        kyc_connector = KYCConnector()
+        antifraud_connector = AntifraudConnector()
 
-            kyc_response = kyc_connector.verify_identity(document_number, client_data["name"])
+        kyc_response = kyc_connector.verify_identity(document_number, client_data["name"])
 
-            if kyc_response.status == 200:
-                
-                fraud_response = antifraud_connector.analyze_risk(document_number, email, client_ip)
-                
-                if fraud_response.status == 200:
+        if kyc_response.json.get("status") == "approved":
             
-                    self.client_repository.update_status(client, ClientStatus.APPROVED)
-                    self.account_repository.create(client)
+            fraud_response = antifraud_connector.analyze_risk(document_number, email, client_ip)
+            
+            if fraud_response.status == 200:
+        
+                self.client_repository.update_status(client, ClientStatus.APPROVED)
+                self.account_repository.create(client)
 
-                else:
-                    self.client_repository.update_status(client, ClientStatus.REJECTED)
             else:
-                
                 self.client_repository.update_status(client, ClientStatus.REJECTED)
+        else:
+            
+            self.client_repository.update_status(client, ClientStatus.REJECTED)
 
         client_dto = clientDTO.only_obj_key(client)
         self.session.commit()
 
         return client_dto
 
-        
 
     def get_by_key(self, client_key: str) -> dict:
-        self.logger.debug(f"Buscando a entidade de chave {client_key}")
+        self.logger.debug(f"Buscando o cliente de chave {client_key}")
 
         client = self.client_repository.get_by_key(client_key)
 
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
         is_owner = client.client_key == self.context.authenticated_client_key
         is_operator = self.context.authenticated_operator_key is not None
 
         if not is_owner and not is_operator:
-            raise AccountNotOwnedByClient(client_key)
+            raise AccountNotOwnedByClient()
 
         return clientDTO.obj_to_dict(client)
 
@@ -172,10 +162,11 @@ class ClientController(BaseController):
         }
 
     def update_status(self, client_key: str, new_status: str) -> dict:
+        self.require_operator() 
         client = self.client_repository.get_by_key(client_key)
-
+        
         if client is None:
-            raise NotFoundSampleEntity(client_key)
+            raise NotFoundClient(client_key)
 
         self._check_status_can_change(client, new_status)
 
@@ -194,8 +185,8 @@ class ClientController(BaseController):
     def _check_status_can_change(self, client: Client, new_status: str) -> None:
         old_status = client.status.enumerator
 
-        if old_status != ClientStatus.PENDING:
-            raise SampleEntityFinalStatus(old_status, new_status)
+        if old_status != ClientStatus.REJECTED:
+            raise ClientFinalStatus(old_status, new_status)
 
     def _parse_birthdate(self, raw_birthdate: str) -> date:
         """Converte a data, ou recusa com 422 em vez de 500.

@@ -1,25 +1,25 @@
 from errors import QIException
 
 
-class NotFoundSampleEntity(QIException):
+class NotFoundClient(QIException):
     code = "QIT001001"
 
-    def __init__(self, sample_entity_key) -> None:
-        title = "Entity not Found"
+    def __init__(self, client_key) -> None:
+        title = "Client not Found"
         http_status = 404
-        description = f"Entity with key {sample_entity_key} was not found."
-        translation = f"A entidade com chave {sample_entity_key} não foi encontrada."
+        description = f"The Client with key {client_key} was not found."
+        translation = f"O client com chave {client_key} não foi encontrado."
         super().__init__(title, self.code, http_status, description, translation)
 
 
-class SampleEntityFinalStatus(QIException):
+class ClientFinalStatus(QIException):
     code = "QIT001002"
 
     def __init__(self, old_status, new_status) -> None:
-        title = "Entity cannot change status"
+        title = "Client cannot change status"
         http_status = 409
-        description = f"Entity with status {old_status} cannot update to {new_status}."
-        translation = "Essa entidade não pode ser atualizada."
+        description = f"Client with status {old_status} cannot update to {new_status}."
+        translation = f"Esse cliente com status {old_status} não pode atualizar para {new_status}."
         super().__init__(title, self.code, http_status, description, translation)
 
 
@@ -71,13 +71,13 @@ class DuplicatedEmail(QIException):
         super().__init__(title, self.code, http_status, description, translation)
 
 
-class UnderageSampleEntity(QIException):
+class UnderageClient(QIException):
     code = "QIT001006"
 
     def __init__(self, age, minimum_age) -> None:
-        title = "Entity is underage"
+        title = "Client is underage"
         http_status = 422
-        description = f"The entity is {age} years old, and the minimum is {minimum_age}."
+        description = f"The Client is {age} years old, and the minimum is {minimum_age}."
         translation = f"É preciso ter pelo menos {minimum_age} anos."
         super().__init__(title, self.code, http_status, description, translation)
 

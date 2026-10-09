@@ -11,7 +11,7 @@ from utils.fee import calculate_transfer_fee
 class AccountController(BaseController):
     def __init__(self) ->None:
         super().__init__(__name__)
-        self.account_repository = AccountRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
+        self.account_repository = AccountRepository(self.context) 
         self.client_repository = ClientRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
 
     def _check_account_ownership(self, account: Account) -> None:
@@ -204,6 +204,9 @@ class AccountController(BaseController):
 
         if account is None:
             raise NotFoundAccount(account_key)
+
+        if account.status.enumerator != AccountStatus.ACTIVE:
+            raise AccountNotActive()
         
         self._check_account_ownership(account)
         extract = self.account_repository.list_page(account, limit + 1, offset, filters)

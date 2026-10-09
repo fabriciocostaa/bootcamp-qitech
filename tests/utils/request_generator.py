@@ -53,3 +53,13 @@ class RequestGenerator:
             "GET", "/clients", headers={"INTERNAL-TOKEN": INTERNAL_TOKEN}, query_params=params
         )
         return response.response_status, response.response_json
+
+    @staticmethod
+    def POST_account_deposit(account_key: str, jwt_token: str, idempotency_key:str, amount: int) -> BaseConnectorResponse:
+        response = ClientRequisition.send(
+            "POST",
+            f"/account/{account_key}/deposit",
+            payload={"amount": amount},
+            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN, "Authorization": f"Bearer {jwt_token}", "Idempotency-Key": idempotency_key},
+        )
+        return response.response_status, response.response_json

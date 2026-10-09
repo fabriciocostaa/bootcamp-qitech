@@ -170,4 +170,10 @@ CREATE TABLE invoice_status_event(
     status_id                       INTEGER NOT NULL REFERENCES invoice_status(id),
     event_datetime                  TIMESTAMP NOT NULL,
     created_at                      TIMESTAMP NOT NULL DEFAULT(NOW())
+CREATE TABLE revoked_token(
+    id                       SERIAL PRIMARY KEY,
+    jti                      CHAR(36) NOT NULL,
+    expires_at               TIMESTAMP NOT NULL,
+    created_at               TIMESTAMP NOT NULL DEFAULT(NOW()),
+    UNIQUE(jti)
 );
