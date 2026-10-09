@@ -32,3 +32,39 @@ class creditDTO:
         for credit in credit_list:
             credit_dict_list.append(creditDTO.obj_to_dict(credit))
         return credit_dict_list
+
+    @staticmethod
+    def approval_response(limit_cents: int, credit_line_key: str) -> dict:
+        return {
+            "status": "APPROVED",
+            "limit_cents": limit_cents,
+            "credit_line_key": credit_line_key
+        }
+
+    @staticmethod
+    def rejection_response(reason: str, status: str = "REJECTED") -> dict:
+        return {
+            "status": status,
+            "reason": reason
+        }
+
+    @staticmethod
+    def withdraw_response(withdrawn_amount: int, fee: float, remaining_limit: int, invoice_due: float, account_balance: int) -> dict:
+        return {
+            "status": "APPROVED",
+            "withdrawn_amount": withdrawn_amount,
+            "fee_charged": fee,
+            "remaining_credit_limit": remaining_limit,
+            "invoice_due_amount": invoice_due,
+            "new_account_balance": account_balance
+        }
+
+    @staticmethod
+    def payment_response(paid_amount: int, remaining_due: float, account_balance: int, restored_limit: int) -> dict:
+        return {
+            "status": "APPROVED",
+            "paid_amount": paid_amount,
+            "remaining_amount_due": remaining_due,
+            "new_account_balance": account_balance,
+            "restored_credit_limit": restored_limit
+        }
