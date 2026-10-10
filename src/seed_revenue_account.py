@@ -1,6 +1,7 @@
 from uuid import uuid4
 from datetime import date
 import os
+import bcrypt
 
 from database import open_context, clear_context
 from models import Client, ClientStatus, Account, AccountStatus
@@ -25,7 +26,7 @@ def seed_revenue_account():
         house_client.email = "receita@banco.universidade"
         house_client.document_number = document_number
         house_client.birthdate = date(2000, 1, 1)
-        house_client.password_hash = password_hash
+        house_client.password_hash = bcrypt.hashpw(password_hash.encode(), bcrypt.gensalt()).decode()
 
         approved_status = (
             session.query(ClientStatus).filter(ClientStatus.enumerator == ClientStatus.APPROVED).one()

@@ -3,7 +3,6 @@ from uuid import uuid4
 import pytest
 
 from tests.utils import ObjectGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 from tests.utils.money import to_cents
 
 
@@ -54,7 +53,6 @@ class TestDeposit:
         assert status == 200
         assert ObjectGenerator.get_balance(client) == 10**12
 
-    @known_bug("BUG-AMOUNT-OVERFLOW", "amount acima do limite do banco (2**63) devolve 500; deveria ser 400/422")
     def test_absurdly_large_amount_is_refused_not_a_500(self):
         client = ObjectGenerator.create_active_client()
 
@@ -89,7 +87,6 @@ class TestDeposit:
         assert response["code"] == "QIT003002"
         assert ObjectGenerator.get_balance(client) == 0
 
-    @known_bug("BUG-OPERATOR-ON-CLIENT-ROUTE", "token de operador numa rota de cliente devolve 500; deveria ser 401/403")
     def test_operator_token_is_refused_cleanly(self, operator_token):
         client = ObjectGenerator.create_active_client()
 

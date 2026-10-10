@@ -1,9 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
 
 from tests.utils import ObjectGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 
 
 def pay(client, amount, key=None, client_key=None, token=None):
@@ -90,7 +91,6 @@ class TestInvoicePay:
         assert response["status"] == "REJECTED"
         assert ObjectGenerator.get_balance(client) == 4800
 
-    @known_bug("BUG-INVOICE-NO-LINE", "pagar fatura sem ter linha de credito (com saldo na conta) devolve 500; deveria ser 422 REJECTED")
     def test_without_a_credit_line_it_is_rejected(self):
         client = ObjectGenerator.create_active_client(balance=5000)
 
@@ -110,7 +110,6 @@ class TestInvoicePay:
         assert response["status"] == "REJECTED"
         assert ObjectGenerator.get_balance(client) == 10000
 
-    @known_bug("BUG-INVOICE-FLOAT", "amount fracionario (10.5) e aceito e debita meio centavo; deveria ser recusado")
     def test_fractional_amount_does_not_change_the_debt(self):
         client, _limit = client_in_debt(withdrawn=10000)
 
@@ -119,7 +118,6 @@ class TestInvoicePay:
         assert status in (400, 422)
         assert ObjectGenerator.get_balance(client) == 10000
 
-    @known_bug("BUG-INVOICE-SCHEMA", "a rota de pagamento nao valida o tipo do amount: texto ou null devolvem 500; deveria ser 400")
     @pytest.mark.parametrize("amount", ["x", None], ids=lambda v: repr(v))
     def test_non_numeric_amount_is_a_400_not_a_500(self, amount):
         client, _limit = client_in_debt(withdrawn=10000)
@@ -172,7 +170,6 @@ class TestInvoicePay:
         assert response["code"] == "QIT003005"
         assert ObjectGenerator.get_balance(victim) == 10000
 
-    @known_bug("BUG-CREDIT-IDEM", "repetir a mesma Idempotency-Key no pagamento da fatura devolve 500 em vez de repetir a resposta")
     def test_replay_with_the_same_key_pays_once(self):
         client, _limit = client_in_debt(withdrawn=10000)
         key = str(uuid4())
@@ -183,3 +180,106 @@ class TestInvoicePay:
         assert first_status == 200
         assert status == 200
         assert ObjectGenerator.get_balance(client) == 7000
+
+    def test_same_key_with_a_different_amount_is_a_conflict(self):
+        client, _limit = client_in_debt()
+        key = str(uuid4())
+        assert pay(client, 3000, key=key)[0] == 200
+
+        status, response = pay(client, 2000, key=key)
+
+        assert status == 409
+        assert response["code"] == "QIT003007"
+        assert ObjectGenerator.get_balance(client) == 7000
+
+    def test_integral_json_number_replays_the_same_payment_as_an_integer(self):
+        client, limit = client_in_debt()
+        key = str(uuid4())
+        first_status, first_response = pay(client, 3000.0, key=key)
+
+        status, response = pay(client, 3000, key=key)
+
+        assert first_status == 200
+        assert status == 200
+        assert response["paid_amount"] == first_response["paid_amount"] == 3000
+        assert response["remaining_amount_due"] == 7200
+        assert response["restored_credit_limit"] == limit - 7200
+        assert ObjectGenerator.get_balance(client) == 7000
+
+    def test_credit_withdrawal_key_cannot_be_reused_for_invoice_payment(self):
+        client = ObjectGenerator.create_active_client()
+        ObjectGenerator.open_credit_line(client)
+        key = str(uuid4())
+        assert RequestGenerator.POST_credit_withdraw(client["client_key"], client["token"], key, 10000)[0] == 201
+
+        status, response = pay(client, 10000, key=key)
+
+        assert status == 409
+        assert response["code"] == "QIT003007"
+        assert ObjectGenerator.get_balance(client) == 10000
+
+    def test_invoice_payment_key_cannot_be_reused_for_credit_withdrawal(self):
+        client, _limit = client_in_debt()
+        key = str(uuid4())
+        assert pay(client, 3000, key=key)[0] == 200
+
+        status, response = RequestGenerator.POST_credit_withdraw(client["client_key"], client["token"], key, 3000)
+
+        assert status == 409
+        assert response["code"] == "QIT003007"
+        assert ObjectGenerator.get_balance(client) == 7000
+
+    def test_overpayment_checks_balance_against_the_actual_debt(self):
+        client, limit = client_in_debt(extra_balance=5000)
+
+        status, response = pay(client, 100000)
+
+        assert status == 200
+        assert response["paid_amount"] == 10200
+        assert response["remaining_amount_due"] == 0
+        assert response["restored_credit_limit"] == limit
+        assert ObjectGenerator.get_balance(client) == 4800
+
+    def test_replay_of_a_capped_payment_succeeds_after_the_debt_is_zero(self):
+        client, limit = client_in_debt(extra_balance=100000)
+        key = str(uuid4())
+        first_status, first_response = pay(client, 100000, key=key)
+
+        status, response = pay(client, 100000, key=key)
+
+        assert first_status == 200
+        assert status == 200
+        assert response["paid_amount"] == first_response["paid_amount"] == 10200
+        assert response["remaining_amount_due"] == 0
+        assert response["restored_credit_limit"] == limit
+        assert ObjectGenerator.get_balance(client) == 99800
+
+    def test_simultaneous_same_key_payments_debit_once(self):
+        client, limit = client_in_debt()
+        key = str(uuid4())
+        ready = Barrier(2)
+
+        def payment():
+            ready.wait(timeout=10)
+            return pay(client, 3000, key=key)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(payment) for _ in range(2)]
+            results = [future.result(timeout=30) for future in futures]
+
+        assert [status for status, _response in results] == [200, 200]
+        for _status, response in results:
+            assert response["paid_amount"] == 3000
+            assert response["remaining_amount_due"] == 7200
+            assert response["restored_credit_limit"] == limit - 7200
+        assert ObjectGenerator.get_balance(client) == 7000
+
+    @pytest.mark.parametrize("payload", [{}, {"amount": True}, {"amount": 100, "extra": 1}, {"amount": 9223372036854775808}], ids=["missing", "boolean", "extra", "overflow"])
+    def test_invalid_payment_schema_does_not_change_the_balance(self, payload):
+        client, _limit = client_in_debt()
+
+        status, response = RequestGenerator.POST_invoice_pay(client["client_key"], client["token"], str(uuid4()), payload)
+
+        assert status == 400
+        assert response["code"] == "QIT000001"
+        assert ObjectGenerator.get_balance(client) == 10000

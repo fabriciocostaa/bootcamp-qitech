@@ -7,40 +7,28 @@ from uuid import uuid4
 import pytest
 import requests
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
 
-from tests.utils import ObjectGenerator, RequestGenerator
+from tests.utils import DbUtils, ObjectGenerator, RequestGenerator
 
 
 def assert_isolated_database(connection):
-    identity = connection.execute(
-        text("SELECT current_database() AS name, inet_server_port() AS port")
-    ).mappings().one()
-    assert identity["name"] == "bootcamp_credit_fix", "Banco de regressao incorreto"
-    assert identity["port"] == 55440, "Porta do banco de regressao incorreta"
+    DbUtils.assert_test_database(connection)
 
 
 @pytest.fixture(scope="module")
 def credit_database():
-    database_url = environ.get("DATABASE_URL")
-    if not database_url:
-        pytest.skip("DATABASE_URL do banco isolado nao configurada")
-    url = make_url(database_url)
-    if (
-        url.get_backend_name() != "postgresql"
-        or url.database != "bootcamp_credit_fix"
-        or url.port != 55440
-        or url.host not in ("127.0.0.1", "localhost")
-    ):
-        pytest.skip("DATABASE_URL nao aponta para o PostgreSQL isolado bootcamp_credit_fix:55440")
-    assert environ.get("API_PORT") == "3309", "Porta da API de regressao incorreta"
-    assert environ.get("SERVER_LOCALHOST") in ("127.0.0.1", "localhost"), "Host da API de regressao incorreto"
-    engine = create_engine(database_url, connect_args={"connect_timeout": 3})
+    DbUtils.check_test_database()
+    api_host = environ.get("SERVER_LOCALHOST", "127.0.0.1")
+    if api_host == "0.0.0.0":
+        api_host = "127.0.0.1"
+    assert api_host in ("127.0.0.1", "localhost"), "Host da API de regressao deve ser local"
+    api_port = environ.get("API_PORT", "3000")
+    engine = create_engine(DbUtils.database_url(), connect_args={"connect_timeout": 3})
     try:
         with engine.connect() as connection:
             assert_isolated_database(connection)
         response = requests.get(
-            f"http://{environ['SERVER_LOCALHOST']}:3309/health_check", timeout=3
+            f"http://{api_host}:{api_port}/health_check", timeout=3
         )
         assert response.status_code == 204, f"API de regressao devolveu {response.status_code} na verificacao de saude"
         yield engine

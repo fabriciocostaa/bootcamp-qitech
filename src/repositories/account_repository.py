@@ -1,6 +1,6 @@
 from database import Context
 from models import Client, Account, AccountStatus, AccountStatusEvent, TransactionType, AccountTransaction, AccountOperation, OperationKind
-from datetime import datetime
+from datetime import datetime, time
 from uuid import uuid4
 
 class AccountRepository:
@@ -192,7 +192,7 @@ class AccountRepository:
 
         end_date = filters.get("end_date")
         if end_date is not None:
-            query = query.filter(AccountTransaction.created_at <= end_date)
+            query = query.filter(AccountTransaction.created_at <= datetime.combine(end_date, time.max))
 
         query = query.order_by(AccountTransaction.created_at.desc())
         return query.offset(offset).limit(limit).all()

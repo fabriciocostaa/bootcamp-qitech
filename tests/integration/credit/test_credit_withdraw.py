@@ -1,9 +1,10 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
 
 from tests.utils import ObjectGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 
 
 def credit_withdraw(client, amount, key=None, client_key=None, token=None):
@@ -46,6 +47,17 @@ class TestCreditWithdraw:
         assert response["invoice_amount_due"] == 10200 + 5100
         assert response["remaining_credit_limit"] == limit - 10200 - 5100
         assert response["new_account_balance"] == 15000
+
+    def test_integral_json_number_keeps_the_two_percent_fee(self):
+        client, limit = client_with_credit()
+
+        status, response = credit_withdraw(client, 1000.0)
+
+        assert status == 201
+        assert response["fee_charged"] == 20
+        assert response["invoice_amount_due"] == 1020
+        assert response["remaining_credit_limit"] == limit - 1020
+        assert ObjectGenerator.get_balance(client) == 1000
 
     def test_credit_money_is_spendable(self):
         client, _limit = client_with_credit()
@@ -151,7 +163,6 @@ class TestCreditWithdraw:
         assert response["code"] == "QIT003005"
         assert ObjectGenerator.get_balance(victim) == 0
 
-    @known_bug("BUG-CREDIT-IDEM", "repetir a mesma Idempotency-Key no saque de credito devolve 500 (violacao de unicidade) em vez de repetir a resposta")
     def test_replay_with_the_same_key_withdraws_once(self):
         client, _limit = client_with_credit()
         key = str(uuid4())
@@ -162,3 +173,53 @@ class TestCreditWithdraw:
         assert first_status == 201
         assert status in (200, 201)
         assert ObjectGenerator.get_balance(client) == 10000
+
+    def test_same_key_with_a_different_amount_is_a_conflict(self):
+        client, _limit = client_with_credit()
+        key = str(uuid4())
+        assert credit_withdraw(client, 10000, key=key)[0] == 201
+
+        status, response = credit_withdraw(client, 5000, key=key)
+
+        assert status == 409
+        assert response["code"] == "QIT003007"
+        assert ObjectGenerator.get_balance(client) == 10000
+
+    def test_account_deposit_key_cannot_be_reused_for_credit_withdrawal(self):
+        client, _limit = client_with_credit()
+        key = str(uuid4())
+        assert RequestGenerator.POST_account_deposit(client["account_key"], client["token"], key, 4000)[0] == 200
+
+        status, response = credit_withdraw(client, 4000, key=key)
+
+        assert status == 409
+        assert response["code"] == "QIT003007"
+        assert ObjectGenerator.get_balance(client) == 4000
+
+    def test_simultaneous_same_key_withdrawals_credit_once(self):
+        client, limit = client_with_credit()
+        key = str(uuid4())
+        ready = Barrier(2)
+
+        def withdraw():
+            ready.wait(timeout=10)
+            return credit_withdraw(client, 10000, key=key)
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(withdraw) for _ in range(2)]
+            results = [future.result(timeout=30) for future in futures]
+
+        assert [status for status, _response in results] == [201, 201]
+        for _status, response in results:
+            assert response["withdrawn_amount"] == 10000
+            assert response["fee_charged"] == 200
+            assert response["invoice_amount_due"] == 10200
+            assert response["remaining_credit_limit"] == limit - 10200
+        assert ObjectGenerator.get_balance(client) == 10000
+
+        status, response = credit_withdraw(client, 1000)
+
+        assert status == 201
+        assert response["invoice_amount_due"] == 11220
+        assert response["remaining_credit_limit"] == limit - 11220
+        assert ObjectGenerator.get_balance(client) == 11000

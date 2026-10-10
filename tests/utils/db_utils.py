@@ -1,10 +1,12 @@
 from os import environ
 from pathlib import Path
-from uuid import uuid4
+from re import fullmatch
+from uuid import UUID, uuid4
 
 import bcrypt
 from sqlalchemy import create_engine, text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError, OperationalError
 
 
 RESET_QUERIES = [
@@ -70,11 +72,71 @@ class DbUtils:
         return environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
 
     @staticmethod
+    def check_test_database():
+        if environ.get("TEST_ALLOW_DATABASE_MUTATION") != "1":
+            raise RuntimeError("Defina TEST_ALLOW_DATABASE_MUTATION=1 apenas para um banco exclusivo de testes.")
+        if environ.get("APP_ENV", "local") not in ("local", "test"):
+            raise RuntimeError("Alteracoes de teste no banco exigem APP_ENV local ou test.")
+        database_url = environ.get("DATABASE_URL")
+        if not database_url:
+            raise RuntimeError("DATABASE_URL do banco de testes nao configurada.")
+        try:
+            url = make_url(database_url)
+        except (ArgumentError, ValueError):
+            raise RuntimeError("DATABASE_URL do banco de testes invalida.") from None
+        if (
+            url.get_backend_name() != "postgresql"
+            or url.host not in ("127.0.0.1", "localhost", "::1", "db")
+            or not url.database
+            or any(name in url.query for name in ("host", "hostaddr", "service"))
+        ):
+            raise RuntimeError("DATABASE_URL deve apontar para um PostgreSQL local exclusivo de testes.")
+        return url
+
+    @staticmethod
+    def assert_test_database(connection):
+        expected = DbUtils.check_test_database().database
+        actual = connection.execute(text("SELECT current_database()")).scalar_one()
+        if actual != expected:
+            raise RuntimeError(f"Banco conectado incorreto: esperado {expected}, recebido {actual}.")
+
+    @staticmethod
+    def _check_seed_variables():
+        names = ["ADMIN_DOCUMENT_NUMBER", "ADMIN_INITIAL_PASSWORD", "ACCOUNT_DOCUMENT_NUMBER",
+                 "ACCOUNT_PASSWORD", "REVENUE_ACCOUNT_KEY"]
+        missing = [name for name in names if not environ.get(name)]
+        if missing:
+            raise RuntimeError(SEED_MISSING_VARIABLES.format(names=", ".join(missing)))
+        invalid = [
+            name for name in ("ADMIN_DOCUMENT_NUMBER", "ACCOUNT_DOCUMENT_NUMBER")
+            if not fullmatch(r"[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}", environ[name])
+        ]
+        revenue_key = environ["REVENUE_ACCOUNT_KEY"]
+        try:
+            valid_key = len(revenue_key) == 36 and str(UUID(revenue_key)) == revenue_key.lower()
+        except ValueError:
+            valid_key = False
+        if not valid_key:
+            invalid.append("REVENUE_ACCOUNT_KEY")
+        for name in ("ADMIN_INITIAL_PASSWORD", "ACCOUNT_PASSWORD"):
+            try:
+                valid_password = 1 <= len(environ[name].encode("utf-8")) <= 72
+            except UnicodeEncodeError:
+                valid_password = False
+            if not valid_password:
+                invalid.append(name)
+        if invalid:
+            raise RuntimeError(f"Variaveis invalidas para recriar o banco de testes: {', '.join(invalid)}.")
+
+    @staticmethod
     def rollback() -> None:
+        DbUtils.check_test_database()
+        DbUtils._check_seed_variables()
         engine = create_engine(DbUtils.database_url(), isolation_level="AUTOCOMMIT")
 
         try:
             with engine.connect() as connection:
+                DbUtils.assert_test_database(connection)
                 for query in RESET_QUERIES:
                     connection.exec_driver_sql(query)
 
@@ -90,11 +152,7 @@ class DbUtils:
 
     @staticmethod
     def _seed(engine) -> None:
-        names = ["ADMIN_DOCUMENT_NUMBER", "ADMIN_INITIAL_PASSWORD", "ACCOUNT_DOCUMENT_NUMBER",
-                 "ACCOUNT_PASSWORD", "REVENUE_ACCOUNT_KEY"]
-        missing = [name for name in names if not environ.get(name)]
-        if missing:
-            raise RuntimeError(SEED_MISSING_VARIABLES.format(names=", ".join(missing)))
+        DbUtils._check_seed_variables()
 
         def hash_password(raw: str) -> str:
             return bcrypt.hashpw(raw.encode(), bcrypt.gensalt()).decode()

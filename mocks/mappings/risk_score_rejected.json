@@ -1,0 +1,18 @@
+{
+  "priority": 2,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/risk/score/.*88.*"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "score": 500,
+      "rating": "D",
+      "recommended_limit_cents": 0
+    }
+  }
+}

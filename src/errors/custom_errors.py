@@ -164,11 +164,14 @@ class SameAccountTransfer(QIException):
 class InvalidDate(QIException):
     code = "QIT002006"
 
-    def __init__(self, start_date, end_date) -> None:
+    def __init__(self, start_date, end_date=None) -> None:
         title = "Invalid Date"
         http_status = 422
         description = f"start_date ({start_date}) is after end_date ({end_date})"
         translation = f"A data de início ({start_date}) é posterior à data de término ({end_date})."
+        if end_date is None:
+            description = str(start_date)
+            translation = "A data informada é inválida. Use uma data existente no formato YYYY-MM-DD."
         super().__init__(title, self.code, http_status, description, translation)
 
 class AccountInvalidStatus(QIException):

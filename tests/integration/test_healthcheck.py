@@ -1,4 +1,4 @@
-from tests.utils import INTERNAL_TOKEN
+from tests.utils import INTERNAL_TOKEN, RequestGenerator
 from tests.utils.requisition import ClientRequisition
 
 
@@ -29,21 +29,28 @@ class TestHealthCheck:
         assert response.response_status == 403
         assert response.response_json["code"] == "QIT000002"
 
-    def test_sink(self):
+    def test_sink(self, operator_token):
         response = ClientRequisition.send(
             "PUT",
             "/sample",
-            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
         )
         assert response.response_status == 404
         assert response.response_json["code"] == "QIT000404"
+
+    def test_sink_requires_authentication(self):
+        response = ClientRequisition.send(
+            "PUT", "/sample", headers={"INTERNAL-TOKEN": INTERNAL_TOKEN}
+        )
+        assert response.response_status == 401
+        assert response.response_json["code"] == "QIT003002"
 
     def test_method_not_allowed(self):
         response = ClientRequisition.send("PUT", "/health_check")
         assert response.response_status == 405
         assert response.response_json["code"] == "QIT000405"
 
-    def test_error_translation_keeps_accents(self):
+    def test_error_translation_keeps_accents(self, operator_token):
         """O acento da fonte chega no cliente — nas duas portas de erro da API.
 
         São dois caminhos diferentes, e por isso são duas requisições num
@@ -63,7 +70,7 @@ class TestHealthCheck:
         response = ClientRequisition.send(
             "PUT",
             "/sample",
-            headers={"INTERNAL-TOKEN": INTERNAL_TOKEN},
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
         )
         assert response.response_status == 404
         assert response.response_json["code"] == "QIT000404"

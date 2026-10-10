@@ -1,6 +1,6 @@
 from controllers.base_controller import BaseController
 from connectors.risk_connector import RiskConnector
-from errors import NotFoundClient, AccountNotOwnedByClient
+from errors import NotFoundClient, AccountNotOwnedByClient, IdempotencyKeyConflict
 from repositories import ClientRepository
 from repositories import CreditRepository
 from repositories import AccountRepository 
@@ -79,7 +79,7 @@ class CreditController(BaseController):
 
     def withdraw_credit(self, client_key: str, payload: dict, idempotency_key: str) -> dict:
         
-        amount = payload.get("amount", 0)
+        amount = int(payload.get("amount", 0))
         if amount <= 0:
             self.logger.warning(f"Invalid withdrawal amount {amount} for client {client_key}")
             return creditDTO.rejection_response(reason="Amount must be greater than zero")
@@ -98,6 +98,11 @@ class CreditController(BaseController):
             self.logger.warning(f"No active account found for client {client_key}")
             return creditDTO.rejection_response(reason="Client does not have an active account")
 
+        request_hash = self._hash_request(endpoint="credit/withdraw", client_key=client_key, amount=amount)
+        operation_exist = self.account_repository.get_operation_by_idempotency(client.id, idempotency_key)
+        if operation_exist is not None and operation_exist.request_hash != request_hash:
+            raise IdempotencyKeyConflict(idempotency_key)
+
         credit_line = self.credit_repository.get_by_client_id(client.id)
         if not credit_line or credit_line.status != "ACTIVE":
             self.logger.warning(f"No active credit line for client {client_key}")
@@ -108,7 +113,16 @@ class CreditController(BaseController):
             self.logger.error(f"Nenhuma fatura aberta encontrada para a linha de crédito {credit_line.id}")
             return creditDTO.rejection_response(reason="Nenhuma fatura aberta disponível no ciclo atual", status="ERROR")
 
-        fee = int(amount * float(credit_line.interest_rate))
+        if operation_exist is not None:
+            return creditDTO.withdraw_response(
+                withdrawn_amount=operation_exist.amount,
+                fee=operation_exist.fee,
+                remaining_limit=credit_line.available_limit,
+                invoice_due=open_invoice.amount_due,
+                account_balance=account.balance
+            )
+
+        fee = int(amount * credit_line.interest_rate)
         total_cost = amount + fee
 
         if credit_line.available_limit < total_cost:
@@ -124,7 +138,8 @@ class CreditController(BaseController):
             kind_enumerator="deposit",
             amount=amount,
             fee=fee, 
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
+            request_hash=request_hash
         )
 
         self.account_repository.register_transaction(
@@ -149,7 +164,7 @@ class CreditController(BaseController):
 
     def pay_invoice(self, client_key: str, payload: dict, idempotency_key: str) -> dict:
         
-        amount_to_pay = payload.get("amount", 0)
+        amount_to_pay = int(payload.get("amount", 0))
         if amount_to_pay <= 0:
             return creditDTO.rejection_response(reason="Amount must be greater than zero")
 
@@ -165,11 +180,23 @@ class CreditController(BaseController):
         if not account or account.status.enumerator != "active":
             return creditDTO.rejection_response(reason="Client does not have an active account")
             
-        if account.balance < amount_to_pay:
-            return creditDTO.rejection_response(reason="Insufficient account balance to pay the invoice")
+        request_hash = self._hash_request(endpoint="invoice/pay", client_key=client_key, amount=amount_to_pay)
+        operation_exist = self.account_repository.get_operation_by_idempotency(client.id, idempotency_key)
+        if operation_exist is not None and operation_exist.request_hash != request_hash:
+            raise IdempotencyKeyConflict(idempotency_key)
 
         credit_line = self.credit_repository.get_by_client_id(client.id)
+        if not credit_line or credit_line.status != "ACTIVE":
+            return creditDTO.rejection_response(reason="No active credit line found")
         open_invoice = self.invoice_repository.get_open_invoice(credit_line.id)
+
+        if operation_exist is not None and open_invoice is not None:
+            return creditDTO.payment_response(
+                paid_amount=operation_exist.amount,
+                remaining_due=open_invoice.amount_due,
+                account_balance=account.balance,
+                restored_limit=credit_line.available_limit
+            )
         
         if not open_invoice or open_invoice.amount_due == 0:
             return creditDTO.rejection_response(reason="No outstanding balance on the open invoice")
@@ -177,12 +204,16 @@ class CreditController(BaseController):
         if amount_to_pay > open_invoice.amount_due:
             amount_to_pay = open_invoice.amount_due
 
+        if account.balance < amount_to_pay:
+            return creditDTO.rejection_response(reason="Insufficient account balance to pay the invoice")
+
         operation = self.account_repository.create_operation(
             actor_client=client,
             kind_enumerator="withdraw",  
             amount=amount_to_pay,
             fee=0,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
+            request_hash=request_hash
         )
 
         self.account_repository.register_transaction(

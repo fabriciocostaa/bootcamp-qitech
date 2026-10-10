@@ -1,0 +1,28 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/antifraud/analyze",
+    "bodyPatterns": [
+      { "matchesJsonPath": "$.cpf" },
+      {
+        "matchesJsonPath": {
+          "expression": "$.email",
+          "contains": "fraude"
+        }
+      },
+      { "matchesJsonPath": "$.ip_address" }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "risk_level": "high",
+      "fraud_score": 95,
+      "recommendation": "deny"
+    }
+  }
+}
