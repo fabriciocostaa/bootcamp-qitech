@@ -18,7 +18,7 @@ São três coisas.
 |---|---|---|
 | **Docker** (com o Docker Desktop no Mac/Windows) | roda a API e o banco | `docker compose version` |
 | **Git** | trazer o projeto para o seu computador | `git --version` |
-| **Python 3.11 ou mais novo** | rodar os testes (seção 2) | `python3 --version` |
+| **Python 3.11** | rodar os testes (seção 2) | `python3 --version` |
 
 Abra o terminal e rode os três comandos da coluna da direita. Se todos
 responderem um número de versão, você está pronto.
