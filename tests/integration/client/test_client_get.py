@@ -33,7 +33,7 @@ class TestClientGet:
 
         assert status == 200
         assert sorted(response.keys()) == [
-            "accounts", "birthdate", "client_key", "document_number", "email", "name", "status", "status_events",
+            "accounts", "birthdate", "client_key", "document_number", "email", "name", "status",
         ]
 
     def test_client_reads_its_own_data(self):

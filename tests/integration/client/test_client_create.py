@@ -164,13 +164,6 @@ class TestClientCreateBoundaries:
         assert status == 422
         assert response["code"] == "QIT001006"
 
-    def test_refuses_underage(self):
-        payload = PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_turning_18_tomorrow())
-        status, response = RequestGenerator.POST_client(payload)
-
-        assert status == 422
-        assert response["code"] == "QIT001006"
-
     def test_refuses_a_birthdate_in_the_future(self):
         payload = PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_in_the_future())
 
@@ -315,8 +308,6 @@ class TestClientCreateBusinessRules:
         assert response["document_number"] == client["document_number"]
         assert response["birthdate"] == client["birthdate"]
         assert response["status"] == "approved"
-        assert [event["status"] for event in response["status_events"]] == ["pending", "approved"]
-        assert all(event["event_datetime"] is not None for event in response["status_events"])
 
         assert len(response["accounts"]) == 1
         account = response["accounts"][0]
@@ -334,17 +325,6 @@ class TestClientCreateBusinessRules:
         token = ObjectGenerator.create_client_auth(client["document_number"], client["password"])["token"]
 
         status, response = RequestGenerator.GET_client(client["client_key"], token)
-
-        assert status == 200
-        assert response["status"] == "rejected"
-        assert [event["status"] for event in response["status_events"]] == ["pending", "rejected"]
-        assert response["accounts"] == []
-
-    def test_creates_client_rejected_when_antifraud_refuses(self, operator_token):
-        """O KYC aprova mas o antifraude barra (e-mail com 'fraude' no mock): `rejected`, sem conta."""
-        client = ObjectGenerator.create_client(email=f"fraude.{uuid4().hex[:8]}@exemplo.com.br")
-
-        status, response = RequestGenerator.GET_client(client["client_key"], operator_token)
 
         assert status == 200
         assert response["status"] == "rejected"

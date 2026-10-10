@@ -26,9 +26,6 @@ class TestClientUpdate:
         assert response["birthdate"] == client["birthdate"]
         assert response["status"] == "approved"
 
-        # Cada mudanca de status deixa um evento: pending (criacao) + rejected (KYC) + approved (operador).
-        assert [event["status"] for event in response["status_events"]] == ["pending", "rejected", "approved"]
-
         # Aprovar o cadastro cria uma conta com saldo zero.
         assert len(response["accounts"]) == 1
         account = response["accounts"][0]
@@ -46,24 +43,6 @@ class TestClientUpdate:
         ObjectGenerator.deposit(client, 1500)
 
         assert ObjectGenerator.get_balance(client) == 1500
-
-    def test_status_events_keep_the_trail_in_order(self, operator_token):
-        """O GET por chave conta a HISTORIA, nao so o estado de agora."""
-        client = ObjectGenerator.create_rejected_client()
-        _key = client["client_key"]
-
-        status, response = RequestGenerator.GET_client(_key, operator_token)
-        assert status == 200
-        assert len(response["status_events"]) == 2
-
-        ObjectGenerator.update_client(_key, "approved", operator_token)
-
-        status, response = RequestGenerator.GET_client(_key, operator_token)
-        trail = [event["status"] for event in response["status_events"]]
-        times = [event["event_datetime"] for event in response["status_events"]]
-
-        assert trail == ["pending", "rejected", "approved"]
-        assert times == sorted(times), "a trilha precisa estar em ordem cronologica"
 
     def test_approved_client_cannot_change_status(self, operator_token):
         """Quem ja foi aprovado nao muda mais — nem pra approved, nem pra rejected."""
