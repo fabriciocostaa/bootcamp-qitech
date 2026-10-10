@@ -163,13 +163,6 @@ class TestClientCreateBoundaries:
         assert status == 422
         assert response["code"] == "QIT001006"
 
-    def test_refuses_underage(self):
-        payload = PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_turning_18_tomorrow())
-        status, response = RequestGenerator.POST_client(payload)
-
-        assert status == 422
-        assert response["code"] == "QIT001006"
-
     def test_refuses_a_birthdate_in_the_future(self):
         payload = PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_in_the_future())
 

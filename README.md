@@ -234,6 +234,8 @@ source .venv/bin/activate
 pip install -r requirements-dev.txt
 ```
 
+#criar uma venv com python 3.11
+
 O `.venv` é uma pasta com um Python só deste projeto. Ele existe pra que
 instalar algo aqui não mexa no Python da sua máquina — e pra que apagar a
 pasta desfaça tudo. No Windows, a segunda linha é
