@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from uuid import uuid4
 import bcrypt
+from sqlalchemy import func
 
 from database import Context
 from models import Client, ClientStatus, ClientStatusEvent
@@ -38,6 +39,10 @@ class ClientRepository:
         ).decode()
         client.birthdate = date.fromisoformat(client_data["birthdate"])
 
+        client.status_events.append(ClientStatusEvent(
+            status=client.status,
+            event_datetime=datetime.now()
+        ))
         self.session.add(client)
         return client
 
@@ -65,7 +70,7 @@ class ClientRepository:
         return self.session.query(Client).filter(Client.document_number == document_number).first()
 
     def get_by_email(self, email: str) -> Client:
-        return self.session.query(Client).filter(Client.email == email).first()
+        return self.session.query(Client).filter(func.lower(Client.email) == email.lower()).first()
 
     def get_status(self, enumerator: str) -> ClientStatus:
         return self.session.query(ClientStatus).filter(ClientStatus.enumerator == enumerator).one()
@@ -100,11 +105,12 @@ class ClientRepository:
 
         name = filters.get("name")
         if name is not None:
-            query = query.filter(Client.name.ilike(f"%{name}%"))
+            name = name.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            query = query.filter(Client.name.ilike(f"%{name}%", escape="\\"))
 
         email = filters.get("email")
         if email is not None:
-            query = query.filter(Client.email == email)
+            query = query.filter(func.lower(Client.email) == email.lower())
 
         document_number = filters.get("document_number")
         if document_number is not None:

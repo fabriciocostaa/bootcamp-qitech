@@ -2,7 +2,7 @@
     "type": "object",
     "properties": {
         "account_to_key": { "type": "string" },
-        "amount": { "type": "number", "minimum": 1 }
+        "amount": { "type": "number", "minimum": 1, "maximum": 9223372036854775807 }
     },
     "required": ["account_to_key", "amount"],
     "additionalProperties": false

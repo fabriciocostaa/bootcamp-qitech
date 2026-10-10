@@ -1,0 +1,16 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "GET",
+    "urlPathPattern": "/api/risk/score/.*77.*"
+  },
+  "response": {
+    "status": 503,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "reason": "Serviço indisponível"
+    }
+  }
+}

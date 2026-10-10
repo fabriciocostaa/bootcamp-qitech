@@ -1,6 +1,6 @@
 import json
 from requests import request, Response
-from requests.exceptions import ConnectionError as RequestsConnectionError
+from requests.exceptions import ConnectionError as RequestsConnectionError, Timeout
 from os import environ
 
 
@@ -26,7 +26,9 @@ class ClientRequisition:
         if headers is None:
             headers = dict()
 
-        api_host = environ.get("SERVER_LOCALHOST", "0.0.0.0")
+        api_host = environ.get("SERVER_LOCALHOST", "127.0.0.1")
+        if api_host == "0.0.0.0":
+            api_host = "127.0.0.1"
         api_port = environ.get("API_PORT", "3000")
         base_url = f"http://{api_host}:{api_port}"
 
@@ -42,9 +44,12 @@ class ClientRequisition:
                 cert=cert,
                 verify=verify,
                 params=query_params,
+                timeout=float(environ.get("TEST_HTTP_TIMEOUT", "30")),
             )
         except RequestsConnectionError:
             raise RuntimeError(API_OFFLINE.format(base_url=base_url)) from None
+        except Timeout:
+            raise RuntimeError(f"A API em {base_url} excedeu o timeout do teste.") from None
 
         base_response = BaseConnectorResponse(
             endpoint=endpoint,

@@ -1,4 +1,5 @@
 from datetime import date
+from sqlalchemy.exc import IntegrityError
 
 from connectors.kyc_connector import KYCConnector
 from connectors.antifraud_connector import AntifraudConnector
@@ -60,7 +61,8 @@ class ClientController(BaseController):
         self.logger.debug("Criando uma nova Client")
 
         document_number = client_data["document_number"]
-        email = client_data["email"]
+        email = client_data["email"].lower()
+        client_data["email"] = email
         birthdate = self._parse_birthdate(client_data["birthdate"])
 
         if not is_valid_cpf(document_number):
@@ -78,7 +80,15 @@ class ClientController(BaseController):
             raise UnderageClient(age, MINIMUM_AGE)
 
         client = self.client_repository.create(client_data=client_data)
-        self.session.flush()
+        try:
+            self.session.flush()
+        except IntegrityError:
+            self.session.rollback()
+            if self.client_repository.get_by_document_number(document_number) is not None:
+                raise DuplicatedDocumentNumber(document_number)
+            if self.client_repository.get_by_email(email) is not None:
+                raise DuplicatedEmail(email)
+            raise
 
         kyc_connector = KYCConnector()
         antifraud_connector = AntifraudConnector()

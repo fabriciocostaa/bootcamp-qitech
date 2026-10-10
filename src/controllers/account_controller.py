@@ -38,6 +38,8 @@ class AccountController(BaseController):
             raise InvalidAmount(amount)
         
         actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
+        if actor is None:
+            raise AccountNotOwnedByClient()
         request_hash = self._hash_request(account_key=account_key, amount=amount)
 
         operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
@@ -51,6 +53,8 @@ class AccountController(BaseController):
         if account is None:
             raise NotFoundAccount(account_key)
         
+        self._check_account_ownership(account)
+
         if not isinstance(amount, int):
             raise InvalidAmount(amount)
 
@@ -78,6 +82,8 @@ class AccountController(BaseController):
             raise InvalidAmount(amount)
 
         actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
+        if actor is None:
+            raise AccountNotOwnedByClient()
         request_hash = self._hash_request(account_key=account_key, amount=amount)
 
         operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
@@ -130,6 +136,8 @@ class AccountController(BaseController):
             raise SameAccountTransfer(account_from_key)
         
         actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
+        if actor is None:
+            raise AccountNotOwnedByClient()
         request_hash = self._hash_request(account_from_key=account_from_key, account_to_key=account_to_key, amount=amount)
 
         operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)

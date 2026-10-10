@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 
 from tests.utils import ObjectGenerator, PayloadGenerator, RandomGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 from tests.utils.random_generator import KYC_REJECTED_FRAGMENT
 
 REQUIRED_FIELDS = ["name", "email", "document_number", "password", "birthdate"]
@@ -266,7 +265,6 @@ class TestClientCreateBusinessRules:
         assert status == 409
         assert response["code"] == "QIT001005"
 
-    @known_bug("BUG-EMAIL-CASE", "e-mails que so diferem na caixa viram dois cadastros (regra a confirmar com o time)")
     def test_refuses_duplicated_email_ignoring_case(self):
         base = f"Pessoa.{uuid4().hex[:10]}@Exemplo.com.br"
         status, _response = RequestGenerator.POST_client(PayloadGenerator.create_client_payload(email=base))
@@ -299,7 +297,7 @@ class TestClientCreateBusinessRules:
             assert status == 200
             assert response["data"] == [], f"a tentativa recusada deixou o CPF {payload['document_number']} cadastrado"
 
-    def test_creates_client_approved_with_an_account(self):
+    def test_creates_client_approved_with_an_account(self, operator_token):
         """Cadastro normal: o KYC e o antifraude aprovam e o cliente ja nasce aprovado, com conta.
 
         A trilha mostra a historia inteira: pending (criacao) -> approved.
@@ -315,8 +313,6 @@ class TestClientCreateBusinessRules:
         assert response["document_number"] == client["document_number"]
         assert response["birthdate"] == client["birthdate"]
         assert response["status"] == "approved"
-        assert [event["status"] for event in response["status_events"]] == ["pending", "approved"]
-        assert all(event["event_datetime"] is not None for event in response["status_events"])
 
         assert len(response["accounts"]) == 1
         account = response["accounts"][0]
@@ -324,7 +320,15 @@ class TestClientCreateBusinessRules:
         assert account["balance"] == "0.00"
         assert account["status"] == "active"
 
-    def test_creates_client_rejected_when_kyc_refuses(self):
+        history = RequestGenerator.send_raw(
+            "GET", f"/client/{_key}/status-events",
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
+        )
+        assert history.response_status == 200
+        assert [event["status"] for event in history.response_json["status_events"]] == ["pending", "approved"]
+        assert all(event["event_datetime"] is not None for event in history.response_json["status_events"])
+
+    def test_creates_client_rejected_when_kyc_refuses(self, operator_token):
         """O KYC recusa a identidade (CPF com '99' no mock): o pedido NAO falha, o cliente nasce `rejected`.
 
         E o mesmo desenho do "passar dos limites nao e erro, e outro
@@ -337,8 +341,14 @@ class TestClientCreateBusinessRules:
 
         assert status == 200
         assert response["status"] == "rejected"
-        assert [event["status"] for event in response["status_events"]] == ["pending", "rejected"]
         assert response["accounts"] == []
+
+        history = RequestGenerator.send_raw(
+            "GET", f"/client/{client['client_key']}/status-events",
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
+        )
+        assert history.response_status == 200
+        assert [event["status"] for event in history.response_json["status_events"]] == ["pending", "rejected"]
 
     def test_creates_client_rejected_when_antifraud_refuses(self, operator_token):
         """O KYC aprova mas o antifraude barra (e-mail com 'fraude' no mock): `rejected`, sem conta."""
@@ -413,10 +423,6 @@ class TestClientCreateBusinessRules:
             )
             assert status == 201
 
-    @known_bug(
-        "BUG-RACE-SIGNUP",
-        "cadastros simultaneos com o mesmo CPF devolvem 500 em vez de 409 (a checagem de duplicidade nao e atomica)",
-    )
     def test_simultaneous_signups_with_the_same_document_create_only_one(self):
         document_number = RandomGenerator.generate_cpf()
 

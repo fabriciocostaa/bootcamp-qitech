@@ -27,7 +27,12 @@ class TestClientUpdate:
         assert response["status"] == "approved"
 
         # Cada mudanca de status deixa um evento: pending (criacao) + rejected (KYC) + approved (operador).
-        assert [event["status"] for event in response["status_events"]] == ["pending", "rejected", "approved"]
+        history = RequestGenerator.send_raw(
+            "GET", f"/client/{_key}/status-events",
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
+        )
+        assert history.response_status == 200
+        assert [event["status"] for event in history.response_json["status_events"]] == ["pending", "rejected", "approved"]
 
         # Aprovar o cadastro cria uma conta com saldo zero.
         assert len(response["accounts"]) == 1
@@ -52,15 +57,22 @@ class TestClientUpdate:
         client = ObjectGenerator.create_rejected_client()
         _key = client["client_key"]
 
-        status, response = RequestGenerator.GET_client(_key, operator_token)
-        assert status == 200
-        assert len(response["status_events"]) == 2
+        history = RequestGenerator.send_raw(
+            "GET", f"/client/{_key}/status-events",
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
+        )
+        assert history.response_status == 200
+        assert len(history.response_json["status_events"]) == 2
 
         ObjectGenerator.update_client(_key, "approved", operator_token)
 
-        status, response = RequestGenerator.GET_client(_key, operator_token)
-        trail = [event["status"] for event in response["status_events"]]
-        times = [event["event_datetime"] for event in response["status_events"]]
+        history = RequestGenerator.send_raw(
+            "GET", f"/client/{_key}/status-events",
+            headers=RequestGenerator.build_headers(jwt_token=operator_token),
+        )
+        assert history.response_status == 200
+        trail = [event["status"] for event in history.response_json["status_events"]]
+        times = [event["event_datetime"] for event in history.response_json["status_events"]]
 
         assert trail == ["pending", "rejected", "approved"]
         assert times == sorted(times), "a trilha precisa estar em ordem cronologica"

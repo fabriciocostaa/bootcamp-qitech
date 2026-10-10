@@ -3,7 +3,8 @@
     "properties":{
         "amount": {
             "type": "integer",
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 9223372036854775807
         }
     },
     "required": ["amount"],

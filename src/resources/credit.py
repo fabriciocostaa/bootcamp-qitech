@@ -50,6 +50,7 @@ class CreditResource:
         )
 
 
+    @SchemaHandler.validate("post_pay_invoice.json")
     def on_post_pay_invoice(self, client_key: str, payload: dict, request: Request) -> JSONResponse:
         controller = CreditController()
 

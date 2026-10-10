@@ -44,23 +44,28 @@ projeto, e somem quando você apaga essa pasta.)
 
 ## 1. Rodando pela primeira vez
 
+Copie a configuração de desenvolvimento antes de iniciar:
+
 ```bash
+cp .env.example .env
 docker compose up
 ```
 
-Um comando. Só isso, e não precisa criar nem copiar arquivo nenhum
-antes: as configurações já vêm com valor padrão dentro do
-`docker-compose.yml`.
+No PowerShell, use `Copy-Item .env.example .env` para fazer a cópia.
+O arquivo inclui valores sintéticos para o operador, a conta de receita,
+o JWT e o banco. Essas credenciais servem apenas para desenvolvimento.
 
-O Docker baixa o Python, sobe o banco, cria as tabelas e liga a API. Na
+O Docker baixa o Python, sobe o banco e o mock server, cria as tabelas,
+prepara o operador e a conta de receita e liga a API. Na
 primeira vez demora alguns minutos; depois é quase instantâneo.
 
-São duas coisas de pé, e vale saber o nome de cada uma:
+São três serviços de pé:
 
 | Serviço | O que é |
 |---|---|
 | `api` | a API que responde às suas requisições |
 | `db` | o banco de dados (PostgreSQL) |
+| `mock-server` | simula as respostas de KYC, antifraude e risco de crédito |
 
 Quando aparecer `Application startup complete`, a API está no ar. Abra
 no navegador:
@@ -77,304 +82,127 @@ Pouca coisa, e de propósito: essa rota só diz "estou viva, e eu sou este
 serviço". Mas você acabou de fazer uma **requisição HTTP** — a mesma
 coisa que o navegador faz ao abrir qualquer site.
 
-### Agora as outras rotas
+### Cadastro, login e consulta
 
-Elas não abrem no navegador, porque exigem um cabeçalho: o
-`INTERNAL-TOKEN`, que é a senha da API (seção 6). Para mandar um
-cabeçalho a gente usa o `curl`, um programa de linha de comando que já
-vem instalado no Mac, no Linux e no Windows.
+As rotas de negócio exigem `INTERNAL-TOKEN`. O cadastro e os logins são
+abertos para quem ainda não tem JWT; as consultas e operações protegidas
+exigem também `Authorization: Bearer <token>`.
 
-**Abra um segundo terminal** — o primeiro está ocupado rodando a API — e
-cole um comando de cada vez.
+Os comandos abaixo usam Bash. No Windows, você pode executá-los no Git Bash.
+Use os valores de token, porta e senhas do seu `.env` se tiver alterado os padrões.
 
-> **No Windows**, use o **Git Bash**: ele veio junto com o Git da seção
-> 0. No PowerShell estes comandos não funcionam, porque lá `curl` é o
-> apelido de outro programa, com outra sintaxe.
-
-#### 1. Criar uma entidade
+#### 1. Criar um cliente
 
 ```bash
-curl -X POST http://localhost:3000/sample_entity \
+curl -X POST http://localhost:3000/client \
   -H "INTERNAL-TOKEN: default_token" \
   -H "Content-Type: application/json" \
   -d '{
-    "hello": "world",
     "name": "Maria da Silva",
     "email": "maria.silva@exemplo.com.br",
     "document_number": "529.982.247-25",
+    "password": "maria123",
     "birthdate": "1990-05-17"
   }'
 ```
 
-```json
-{"sample_entity_key":"3fbf83e9-e5fc-4e0f-8427-db6a1a50f964"}
-```
+A resposta é `201` com `client_key`. Copie a chave recebida. O mock de
+KYC e o de antifraude decidem se o cadastro fica `approved` ou `rejected`.
+Quando aprovado, o cliente recebe uma conta com saldo zero.
 
-Esse `sample_entity_key` é o endereço da entidade que você acabou de
-criar. **Copie o seu** — ele nasce diferente a cada vez, e nos comandos
-abaixo você troca o que está escrito aqui pelo seu.
-
-> **Rodou o comando duas vezes e levou 409 na segunda?** É de propósito:
-> o CPF e o e-mail não podem se repetir. Para criar uma segunda
-> entidade, troque o e-mail (qualquer um serve) e o CPF — mas o CPF tem
-> que ser **válido de verdade**, com os dois dígitos finais batendo com
-> a conta. O `529.982.247-25` acima é um CPF de teste conhecido, que
-> passa na conta e não pertence a ninguém.
->
-> **E os cinco campos são todos obrigatórios?** São. Mande `{}` e a API
-> diz qual está faltando — é o comando 6 lá embaixo.
-
-#### 2. Buscar a entidade
+#### 2. Fazer login como cliente
 
 ```bash
-curl http://localhost:3000/sample_entity/3fbf83e9-e5fc-4e0f-8427-db6a1a50f964 \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-```json
-{"hello":"world","sample_entity_key":"3fbf83e9-e5fc-4e0f-8427-db6a1a50f964","name":"Maria da Silva","email":"maria.silva@exemplo.com.br","document_number":"529.982.247-25","birthdate":"1990-05-17","status":"pending","counter":0,"status_events":[{"status":"pending","event_datetime":"2026-09-11T20:36:43.104210"}]}
-```
-
-Você mandou cinco campos e voltaram nove. Os quatro extras a API montou
-sozinha:
-
-- **`sample_entity_key`** — o endereço da entidade;
-- **`status`** — o estado inicial, `pending`;
-- **`counter`** — um contador zerado;
-- **`status_events`** — a **história**. Cada vez que o status muda, uma
-  linha nova entra aqui, com a hora. Saber onde a entidade está é uma
-  coisa; saber por onde ela passou é outra, e é essa lista que responde
-  a segunda.
-
-#### 3. Listar as entidades
-
-```bash
-curl http://localhost:3000/sample_entities \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-```json
-{"data":[{"hello":"world","sample_entity_key":"3fbf83e9-e5fc-4e0f-8427-db6a1a50f964","name":"Maria da Silva","email":"maria.silva@exemplo.com.br","document_number":"529.982.247-25","birthdate":"1990-05-17","status":"pending","counter":0}],"limit":10,"page":0,"is_last_page":true}
-```
-
-Vêm de dez em dez, da mais nova para a mais antiga. Para pedir outra
-quantidade ou outra página, acrescente `?limit=2&page=0` ao endereço —
-o `limit` vai até **100**. O `is_last_page` já responde a pergunta
-seguinte — "tem mais?" — sem custar uma segunda requisição.
-
-Repare no que **não** veio: o `status_events`. Na lista cada item vem
-resumido, porque montar a história de cada entidade custa uma consulta a
-mais por item — numa página de 100, são 100 consultas para uma
-informação que quem está varrendo não pediu. A história aparece quando
-você abre UMA entidade, no comando 2.
-
-Também dá para **filtrar**. Todos os filtros se combinam, e todos são
-opcionais:
-
-```bash
-curl "http://localhost:3000/sample_entities?name=maria&status=pending&status=failed" \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-| Filtro | Como casa |
-|---|---|
-| `name` | por **pedaço**, ignorando maiúscula/minúscula |
-| `email` | exato |
-| `document_number` | exato |
-| `birthdate_from` / `birthdate_to` | intervalo, **incluindo** as duas pontas |
-| `status` | pode repetir: `?status=pending&status=failed` traz os dois |
-
-Repare que `status` se comporta ao contrário dos outros: `name` junto
-com `email` **estreita** a busca (os dois precisam bater), mas dois
-`status` **alargam** (basta um bater). Faz sentido pelo que a pessoa
-quer dizer — "me mostra o que deu errado e o que deu certo" é um pedido
-legítimo, e uma entidade só pode estar num dos baldes.
-
-#### 4. Somar 1 no contador
-
-```bash
-curl -i -X PUT http://localhost:3000/webhook/sample_entity/3fbf83e9-e5fc-4e0f-8427-db6a1a50f964/increment_counter \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-```
-HTTP/1.1 204 No Content
-```
-
-Esta rota não responde nada — por isso o `-i`, que manda o `curl`
-mostrar também o **status** da resposta. `204` quer dizer "deu certo e
-não tenho nada a dizer". Repita o comando 2: o `counter` agora é `1`.
-
-#### 5. Mudar o status
-
-```bash
-curl -X PUT http://localhost:3000/sample_entity/3fbf83e9-e5fc-4e0f-8427-db6a1a50f964 \
+curl -X POST http://localhost:3000/auth/login \
   -H "INTERNAL-TOKEN: default_token" \
   -H "Content-Type: application/json" \
-  -d '{"status": "success"}'
+  -d '{"document_number":"529.982.247-25","password":"maria123"}'
 ```
 
-```json
-{"sample_entity_key":"3fbf83e9-e5fc-4e0f-8427-db6a1a50f964"}
-```
-
-Repita o comando 2: o `status` virou `success`. E rode este comando 5
-mais uma vez — agora a API recusa:
-
-```json
-{"title":"Entity cannot change status","description":"Entity with status success cannot update to success.","translation":"Essa entidade não pode ser atualizada.","code":"QIT001002"}
-```
-
-Isso é uma **regra de negócio**, não um erro de digitação: entidade que
-já terminou não volta atrás. A frase que decide isso mora em
-`src/controllers/sample_entity_controller.py`, e você pode ir ler.
-
-#### 6. Mandar um JSON torto
+A resposta é `200` com `token`. Guarde o JWT e a chave do cadastro:
 
 ```bash
-curl -X POST http://localhost:3000/sample_entity \
+CLIENT_TOKEN='cole_o_token_recebido'
+CLIENT_KEY='cole_a_client_key_recebida'
+```
+
+#### 3. Consultar o próprio cadastro
+
+```bash
+curl "http://localhost:3000/client/$CLIENT_KEY" \
+  -H "INTERNAL-TOKEN: default_token" \
+  -H "Authorization: Bearer $CLIENT_TOKEN"
+```
+
+A resposta `200` contém `client_key`, `name`, `email`, `document_number`,
+`birthdate`, `status` e `accounts`. Cada conta informa `account_key`,
+`balance` e `status`. O saldo é uma string em reais, como `"0.00"`.
+O histórico não vem nessa resposta; há rotas próprias para ele.
+
+#### 4. Fazer login como operador
+
+```bash
+curl -X POST http://localhost:3000/auth/operator/login \
   -H "INTERNAL-TOKEN: default_token" \
   -H "Content-Type: application/json" \
-  -d '{}'
+  -d '{"document_number":"529.982.247-25","password":"admin123"}'
 ```
 
-```json
-{"title":"Bad Request","description":"'hello' is a required property","translation":"Payload Inválido","code":"QIT000001"}
-```
-
-**400**, e nada foi criado. O `hello` é obrigatório, e quem recusou não
-foi a regra de negócio: foi o `src/schemas/`, antes da primeira linha da
-rota rodar. Pedido torto não chega a custar uma consulta ao banco.
-
-Repare que ele reclamou de **um** campo, e você deixou cinco de fora. É
-assim mesmo: a validação para no primeiro problema. Tire o `{}` e vá
-preenchendo um campo de cada vez para ver a reclamação andar.
-
-E existe uma fronteira aqui que vale a pena enxergar cedo. Mande um CPF
-com o formato certo e os dígitos errados:
+Use `ADMIN_DOCUMENT_NUMBER` e `ADMIN_INITIAL_PASSWORD` do `.env`.
+O operador é criado quando o serviço inicia. Copie o token retornado:
 
 ```bash
-curl -X POST http://localhost:3000/sample_entity \
+OPERATOR_TOKEN='cole_o_token_do_operador'
+```
+
+#### 5. Consultar o histórico de status
+
+```bash
+curl "http://localhost:3000/client/$CLIENT_KEY/status-events" \
   -H "INTERNAL-TOKEN: default_token" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "hello": "world",
-    "name": "Maria da Silva",
-    "email": "outra@exemplo.com.br",
-    "document_number": "111.111.111-11",
-    "birthdate": "1990-05-17"
-  }'
+  -H "Authorization: Bearer $OPERATOR_TOKEN"
 ```
 
-```json
-{"title":"Invalid Document Number","description":"The document number 111.111.111-11 is not a valid CPF.","translation":"O CPF informado não é válido.","code":"QIT001003"}
-```
+Essa rota exige JWT de **operador**, inclusive quando quem consulta é o
+próprio titular. A resposta `200` tem `status_events`: cada item contém
+`status`, `event_datetime` e `operator_key`. Eventos automáticos têm
+`operator_key: null`; mudanças manuais registram a chave do operador.
 
-Agora é **422**, não 400. A diferença não é capricho: 400 quer dizer
-"não consegui ler o seu pedido"; 422 quer dizer "li, entendi, e esse
-valor não pode existir". O schema sabe contar pontos e traços — ele não
-sabe fazer a conta dos dois últimos dígitos. Quem sabe é o
-`src/utils/document_number.py`, e por isso essa recusa vem de dentro,
-com código próprio.
+O histórico da conta segue o mesmo formato e a mesma autorização:
+`GET /account/{account_key}/status-events`.
 
-#### Esqueceu o `-H "INTERNAL-TOKEN: ..."`?
+### Rotas disponíveis
 
-A API responde **403** e nem chega a olhar o resto:
-
-```json
-{"title":"Forbidden","description":"Request must be internal","translation":"Requisição precisa ser interna","code":"QIT000002"}
-```
-
-#### Toda resposta vem com um número de protocolo
-
-Repare no `-i` deste comando: ele mostra os **cabeçalhos** da resposta,
-não só o corpo.
-
-```bash
-curl -i "http://localhost:3000/sample_entities?limit=1" \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-```
-HTTP/1.1 200 OK
-content-type: application/json
-x-request-id: 8f3c1e42-1b0d-4f77-9a55-2e4c9d1f0abc
-...
-```
-
-Esse `x-request-id` é o **número de protocolo** da sua requisição: um
-nome único, criado no instante em que ela chegou. Copie o seu e procure
-por ele no log:
-
-```bash
-docker compose logs api | grep 8f3c1e42
-```
-
-```
-[INFO] bootcamp-api.middlewares.request_logger [8f3c1e42-...] - ENTROU GET /sample_entities?limit=1
-[INFO] bootcamp-api.middlewares.request_logger [8f3c1e42-...] - SAIU 200 GET /sample_entities - 2.9 ms
-```
-
-Duas linhas, o mesmo nome nas duas — e nenhuma outra requisição usa esse
-nome. Serve para o dia em que alguém disser "deu erro por volta das
-14h30": sem o número, você abre o log e encontra mil linhas parecidas, de
-mil requisições diferentes, embaralhadas, porque a API atende várias ao
-mesmo tempo e o log é um só. Com o número, achar a agulha é um `grep`.
-
-Se quem chamou já mandar um `x-request-id`, a API **respeita o que veio**
-e usa o mesmo — é assim que se segue um único pedido atravessando vários
-sistemas:
-
-```bash
-curl -i "http://localhost:3000/sample_entities?limit=1" \
-  -H "INTERNAL-TOKEN: default_token" \
-  -H "X-Request-ID: meu-teste-1"
-```
-
-Experimente mandar um valor esquisito nesse cabeçalho — com espaços, ou
-bem comprido. A API não devolve o que você mandou: ela troca por um novo.
-O porquê está em `src/utils/request_context.py`, e é uma das poucas
-lições de segurança que cabem em cinco linhas.
-
-> Só o `/` e o `/health_check` não aparecem no log: o Docker consulta o
-> health check a cada três segundos, e sem essa exceção o log seria
-> quase só isso. Eles ganham o `x-request-id` como todo mundo — o que
-> não ganham é a linha de log.
-
-### Todas as rotas
-
-Sete endereços — este é o mapa inteiro da API:
-
-| Método e rota | O que faz | Responde |
+| Método e rota | O que faz | Autenticação |
 |---|---|---|
-| `GET /` | diz qual serviço é este | `200` + nome e id |
-| `GET /health_check` | diz se a API está de pé | `204`, sem corpo |
-| `POST /sample_entity` | cria uma entidade | `201` + o `sample_entity_key` |
-| `GET /sample_entity/{key}` | busca uma entidade | `200` + a entidade |
-| `GET /sample_entities` | lista, de dez em dez, com filtros | `200` + a página |
-| `PUT /sample_entity/{key}` | muda o status (`success` ou `failed`) | `202` + o `sample_entity_key` |
-| `PUT /webhook/sample_entity/{key}/increment_counter` | soma 1 no contador | `204`, sem corpo |
+| `GET /` | identifica o serviço | aberta |
+| `GET /health_check` | confirma que a API responde; retorna 204 | aberta |
+| `POST /client` | cadastra o cliente | token interno |
+| `POST /auth/login` | autentica o cliente | token interno |
+| `POST /auth/operator/login` | autentica o operador | token interno |
+| `POST /auth/logout` | revoga o JWT | token interno + JWT |
+| `GET /client/{client_key}` | consulta cadastro e contas | token interno + JWT autorizado |
+| `GET /clients` | lista clientes com filtros e paginação | token interno + JWT de operador |
+| `PUT /client/{client_key}` | altera o status do cadastro | token interno + JWT de operador |
+| `GET /client/{client_key}/status-events` | histórico do cadastro | token interno + JWT de operador |
+| `PATCH /account/{account_key}` | altera o status da conta | token interno + JWT de operador |
+| `GET /account/{account_key}/status-events` | histórico da conta | token interno + JWT de operador |
+| `POST /account/{account_key}/deposit` | deposita na conta | token interno + JWT do titular |
+| `POST /account/{account_key}/withdraw` | retira da conta | token interno + JWT do titular |
+| `POST /account/{account_key}/transfer` | transfere entre contas | token interno + JWT do titular da origem |
+| `GET /account/{account_key}/extract` | extrato paginado | token interno + JWT do titular |
+| `POST /client/{client_key}/credit` | solicita crédito ao bureau de risco | token interno + JWT do titular |
+| `POST /client/{client_key}/credit/withdraw` | resgata crédito | token interno + JWT do titular |
+| `POST /client/{client_key}/invoice/pay` | paga a fatura | token interno + JWT do titular |
 
-As cinco de baixo exigem o `INTERNAL-TOKEN` (seção 6). As duas de cima
-são abertas — a primeira você já usou: foi ela que respondeu no
-navegador.
+Depósito, retirada, transferência, resgate de crédito e pagamento de fatura
+recebem também `Idempotency-Key`. Os valores dessas operações são inteiros
+em **centavos**, por exemplo `{"amount":1000}` para R$ 10,00.
+A transferência usa também `account_to_key` para indicar o destino.
 
-Os parâmetros da listagem, todos opcionais e combináveis:
-`?limit=` (padrão 10, teto 100) · `?page=` (padrão 0) · `?status=`
-(repetível) · `?name=` · `?email=` · `?document_number=` ·
-`?birthdate_from=` · `?birthdate_to=`. Qualquer outro nome a API
-**recusa** com 400 — é o `src/schemas/get_sample_entities.json` que
-decide, e ele não aceita o que não conhece. Vale a pena errar de
-propósito uma vez:
-
-```bash
-curl "http://localhost:3000/sample_entities?stauts=pending" \
-  -H "INTERNAL-TOKEN: default_token"
-```
-
-Sem essa recusa, um `stauts` com a letra trocada viraria uma lista
-inteira devolvida como se o filtro tivesse funcionado — o pior tipo de
-bug, o que não reclama.
+As listagens usam `limit` e `page`, com página inicial zero. O extrato
+aceita `start_date` e `end_date` no formato `YYYY-MM-DD`. Consulte os
+arquivos de `src/schemas/` e os testes de integração para cada contrato.
 
 Para desligar tudo: `Ctrl+C` no terminal da API e depois
 
@@ -387,7 +215,16 @@ docker compose down
 ## 2. Rodando os testes
 
 Os testes rodam **na sua máquina**, contra a API que está de pé no
-Docker. Então são dois passos: um de uma vez só, outro toda vez.
+Docker. Use um banco exclusivo para testes: alguns casos apagam e
+recriam todas as tabelas de `public`. Não execute a suíte em um banco
+com dados que deseja manter.
+
+Crie `.env` com a seção 1. O arquivo deve apontar para a mesma API e o
+mesmo banco usados pelo Docker. `TEST_ALLOW_DATABASE_MUTATION=1` permite
+explicitamente a limpeza e os testes de integridade; `APP_ENV` deve ser
+`local` ou `test`. Sem essa configuração, os testes falham antes de
+alterar o banco. Os testes de crédito aceitam o nome e as portas definidos
+no ambiente, inclusive portas publicadas diferentes das internas do Docker.
 
 **Uma vez só — instalar as dependências de teste:**
 
@@ -405,7 +242,7 @@ pasta desfaça tudo. No Windows, a segunda linha é
 **Toda vez — com a API de pé, em outro terminal:**
 
 ```bash
-pytest
+pytest -ra
 ```
 
 A API precisa estar respondendo antes. Se você acabou de dar
@@ -418,10 +255,8 @@ O resultado sai assim:
 ```
 tests/integration/test_healthcheck.py::TestHealthCheck::test_home PASSED
 ...
-============================== 35 passed in 1.54s ==============================
 ```
 
-pytest -v tests/integration/cllient/test_client_update.py
 Para rodar só um arquivo (ou só um teste), acrescente o caminho:
 
 ```bash
@@ -429,17 +264,31 @@ pytest -v tests/integration/test_healthcheck.py
 ```
 
 Os testes leem o seu `.env` sozinhos (é o `tests/conftest.py` que faz
-isso). Trocou a porta da API ali, os testes passam a bater na porta nova
-— você não configura a mesma coisa em dois lugares.
+isso). `SERVER_LOCALHOST` e `API_PORT` indicam a API; `DATABASE_URL`
+indica o banco acessível pela máquina que roda o pytest. O timeout HTTP
+padrão é de 30 segundos e pode ser ajustado com `TEST_HTTP_TIMEOUT`.
 
-Os testes conversam com a API **por HTTP**, exatamente como um cliente de
-verdade faria. Eles não espiam o código por dentro: nenhum deles importa
-nada de `src/`. Só sabem: "mandei isso, tem que voltar aquilo".
+Para salvar o resultado completo no PowerShell:
 
-> Uma exceção, e ela é honesta: `tests/utils/db_utils.py` fala com o
-> banco direto, por SQLAlchemy. Mas não para **montar** cenário — só
-> para **zerar** o banco entre testes que não podem se atrapalhar. O
-> cenário continua nascendo pela API, com `POST`.
+```powershell
+pytest -ra --tb=short 2>&1 | Tee-Object pytest-resultados.txt
+```
+
+`passed` indica testes aprovados. `failed` indica uma asserção que não
+foi atendida. `error` indica falha de preparação, como login do operador
+ou conexão com o banco. `xfail` indica defeitos conhecidos ainda marcados
+na suíte. Para executá-los como falhas normais, use `pytest --runxfail -ra`.
+
+Os testes de integração conversam com a API **por HTTP**, como um cliente.
+Os testes unitários em `tests/test_database_configuration.py` conferem as
+guardas de configuração e o seed com acesso ao banco e HTTP simulados.
+
+> Os cenários nascem pela API. `tests/utils/db_utils.py` acessa o banco
+> para limpar os dados e repor o operador e a conta de receita. Os testes
+> de integridade de crédito também usam SQL para conferir valores gravados,
+> controlar concorrência e simular falha na criação da fatura. As guardas
+> exigem permissão explícita e confirmam o banco configurado antes dessas
+> alterações. Execute a suíte sequencialmente, sem `pytest-xdist`.
 
 Isso tem uma consequência bonita: **este projeto inteiro já foi reescrito
 de um framework para outro, e nenhum teste precisou mudar.** Quando o
@@ -464,8 +313,7 @@ outras portas livres. É pra isto que serve o `.env` —
 cp .env.example .env
 ```
 
-— e, dentro dele, tire o `#` da frente destas duas linhas e troque os
-números:
+— e, dentro dele, troque os números destas duas linhas:
 
 ```
 API_PORT=3001
@@ -606,10 +454,9 @@ Toda configuração entra por **variável de ambiente** — nunca escrita no
 meio do código.
 
 - **valor padrão** → escrito no `docker-compose.yml`, na forma
-  `${VARIAVEL:-padrao}`. É por causa dele que o `docker compose up`
-  funciona sem preparo nenhum.
-- `.env` → **opcional**, fica só na sua máquina e **nunca** vai para o
-  Git. Serve para sobrescrever um padrão (porta ocupada, outro token).
+  `${VARIAVEL:-padrao}` para as opções que têm um padrão de desenvolvimento.
+- `.env` → **obrigatório** nesta configuração, fica só na sua máquina e
+  **nunca** vai para o Git. Define JWT, operador, receita, banco e portas.
 - `.env.example` → vai para o Git, e é a cópia de onde você parte. Só
   tem valor de mentirinha.
 
@@ -624,7 +471,7 @@ se recusa a subir sem ele.
 
 ## 6. Autenticação
 
-As rotas de negócio pedem um cabeçalho:
+As rotas de negócio pedem o token interno:
 
 ```
 INTERNAL-TOKEN: default_token
@@ -633,9 +480,9 @@ INTERNAL-TOKEN: default_token
 Sem ele, a API responde **403**. `default_token` é o valor padrão; para
 trocar, ponha `INTERNAL_TOKEN=outra_coisa` no seu `.env`.
 
-Ficam abertas, de propósito, só duas: a rota raiz e o `/health_check`
-— esta última porque quem a consulta é o próprio Docker, que não tem
-como mandar cabeçalho.
+A raiz e `/health_check` não exigem esse token. Cadastro e logins exigem
+apenas o token interno. As demais rotas exigem também o JWT no cabeçalho
+`Authorization: Bearer <token>`, com o perfil e a titularidade adequados.
 
 ---
 

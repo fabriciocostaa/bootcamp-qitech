@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "amount": {
+      "type": "integer",
+      "maximum": 9223372036854775807
+    }
+  },
+  "required": [
+    "amount"
+  ],
+  "additionalProperties": false
+}

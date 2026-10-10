@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 
 from tests.utils import ObjectGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 from tests.utils.money import expected_transfer_fee
 
 
@@ -179,7 +178,6 @@ class TestExtractPagination:
             assert status == 400, f"limit={invalid}"
             assert response["code"] == "QIT000001"
 
-    @known_bug("BUG-LIMIT-ZERO", "limit=0 e aceito e devolve pagina vazia com is_last_page=false")
     def test_limit_zero_is_refused(self):
         client = self.fund_with_deposits(1)
 
@@ -223,7 +221,6 @@ class TestExtractDateFilters:
         assert status == 200
         assert response["data"] == []
 
-    @known_bug("BUG-EXTRACT-END-DATE", "end_date compara com meia-noite: as operacoes do proprio dia final ficam de fora")
     def test_end_date_today_includes_todays_entries(self):
         client = ObjectGenerator.create_active_client()
         today = server_today(client)
@@ -260,7 +257,6 @@ class TestExtractDateFilters:
                 assert status == 400, f"{field}={bad}"
                 assert response["code"] == "QIT000001"
 
-    @known_bug("BUG-EXTRACT-INVALID-DATE", "data com formato certo mas inexistente (2025-02-30) devolve 500; deveria ser 422")
     @pytest.mark.parametrize("field", ["start_date", "end_date"])
     def test_impossible_date_is_a_422_not_a_500(self, field):
         client = ObjectGenerator.create_active_client()

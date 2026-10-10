@@ -3,7 +3,6 @@ from uuid import uuid4
 import pytest
 
 from tests.utils import DbUtils, ObjectGenerator, PayloadGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 
 
 def extract_keys(response: dict) -> list:
@@ -123,7 +122,6 @@ class TestClients:
             assert status == 200, f"limit={limit} foi recusado"
             assert response["limit"] == limit
 
-    @known_bug("BUG-LIMIT-ZERO", "limit=0 e aceito e devolve pagina vazia com is_last_page=false (quem pagina em laco nunca termina)")
     def test_refuses_limit_zero(self, operator_token):
         status, response = RequestGenerator.GET_clients(operator_token, {"limit": 0})
 
@@ -176,7 +174,6 @@ class TestClients:
         status, response = RequestGenerator.GET_clients(operator_token, {"name": unique_surname.upper()})
         assert extract_keys(response) == [matching["client_key"]]
 
-    @known_bug("BUG-LIKE-WILDCARD", "o filtro de nome usa LIKE sem escapar: '%' e '_' agem como curingas (severidade baixa; regra a confirmar)")
     def test_name_filter_treats_wildcards_literally(self, operator_token):
         """`%` e `_` sao caracteres comuns numa busca por nome, nao curingas de SQL."""
         batch = f"Coringa{uuid4().hex[:8]}"
