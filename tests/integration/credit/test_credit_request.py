@@ -1,7 +1,6 @@
 from uuid import uuid4
 
 from tests.utils import ObjectGenerator, RandomGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 from tests.utils.random_generator import RISK_LOW_SCORE_FRAGMENT, RISK_UNAVAILABLE_FRAGMENT
 
 
@@ -69,7 +68,6 @@ class TestCreditRequest:
         assert status == 401
         assert response["code"] == "QIT003002"
 
-    @known_bug("BUG-CREDIT-OWNERSHIP", "as rotas de credito nao checam o dono: qualquer cliente logado abre credito no nome de outro")
     def test_cannot_open_credit_for_another_client(self):
         victim = ObjectGenerator.create_active_client()
         intruder = ObjectGenerator.create_active_client()

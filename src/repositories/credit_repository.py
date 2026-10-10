@@ -17,8 +17,7 @@ class CreditRepository:
         credit_line.status = "ACTIVE"
         
         self.session.add(credit_line)
-        self.session.commit()
-        self.session.refresh(credit_line)
+        self.session.flush()
         return credit_line
 
     def get_by_key(self, credit_line_key: str) -> CreditLine:
@@ -32,6 +31,8 @@ class CreditRepository:
         return (
             self.session.query(CreditLine)
             .filter(CreditLine.client_id == client_id)
+            .with_for_update()
+            .populate_existing()
             .first()
         )
 

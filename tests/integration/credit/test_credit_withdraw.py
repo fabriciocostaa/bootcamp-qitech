@@ -141,7 +141,6 @@ class TestCreditWithdraw:
             assert response.response_status == 400, body
             assert response.response_json["code"] == "QIT000001"
 
-    @known_bug("BUG-CREDIT-OWNERSHIP", "as rotas de credito nao checam o dono: qualquer cliente logado saca no nome de outro")
     def test_cannot_withdraw_credit_of_another_client(self):
         victim, _limit = client_with_credit()
         intruder = ObjectGenerator.create_active_client()

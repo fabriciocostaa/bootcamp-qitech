@@ -202,5 +202,6 @@ class AccountRepository:
             self.session.query(Account)
             .filter(Account.client_id == client_id)
             .with_for_update()
+            .populate_existing()
             .one_or_none()
         )
