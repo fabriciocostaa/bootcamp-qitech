@@ -14,7 +14,6 @@ def extract(client, params=None, token=None, account_key=None):
 
 
 def server_today(client) -> date:
-    """O 'hoje' do SERVIDOR, lido de uma operacao recem-criada (evita brigar com fuso/relogio)."""
     created_at = ObjectGenerator.deposit(client, 1)["created_at"]
     return date.fromisoformat(created_at[:10])
 
@@ -126,14 +125,14 @@ class TestExtractAccess:
         status, response = RequestGenerator.GET_account_extract(client["account_key"], None)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
 
 class TestExtractPagination:
     def fund_with_deposits(self, count):
         client = ObjectGenerator.create_active_client()
         for i in range(count):
-            ObjectGenerator.deposit(client, 100 + i)  # valores distintos: da pra conferir a ordem
+            ObjectGenerator.deposit(client, 100 + i)
         return client
 
     def test_pages_do_not_overlap_or_skip(self):

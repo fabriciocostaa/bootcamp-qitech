@@ -1,17 +1,13 @@
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
+import pytest
+
 from tests.utils import ObjectGenerator, RequestGenerator
-from tests.utils.markers import known_bug
 from tests.utils.money import expected_transfer_fee
 
 
 class TestIdempotency:
-    """Repetir a MESMA requisicao (mesma Idempotency-Key) nao repete o efeito.
-
-    E o que permite ao cliente tentar de novo depois de um timeout sem
-    medo de cobrar duas vezes.
-    """
 
     def test_deposit_replay_returns_the_same_operation_and_credits_once(self):
         client = ObjectGenerator.create_active_client()
@@ -70,7 +66,6 @@ class TestIdempotency:
         assert ObjectGenerator.get_balance(client) == 2000
 
     def test_keys_are_scoped_per_client(self):
-        """Dois clientes podem usar a mesma chave sem esbarrar um no outro."""
         key = str(uuid4())
         first = ObjectGenerator.create_active_client()
         second = ObjectGenerator.create_active_client()
@@ -83,7 +78,6 @@ class TestIdempotency:
         assert ObjectGenerator.get_balance(first) == 1000
         assert ObjectGenerator.get_balance(second) == 1000
 
-    @known_bug("BUG-IDEM-CROSS-ENDPOINT", "a chave nao considera o tipo de operacao: reusar a chave de um deposito num saque do mesmo valor devolve o deposito e nao saca nada")
     def test_key_reused_for_a_different_operation_is_a_conflict(self):
         client = ObjectGenerator.create_active_client()
         key = str(uuid4())
@@ -93,23 +87,42 @@ class TestIdempotency:
 
         assert status == 409
 
-    @known_bug("BUG-IDEM-EMPTY", "Idempotency-Key vazia e aceita; deveria ser 400")
-    def test_empty_key_is_refused(self):
-        client = ObjectGenerator.create_active_client()
+    @pytest.mark.parametrize("operation", ["deposit", "withdraw", "transfer"])
+    def test_empty_key_is_refused(self, operation):
+        client = ObjectGenerator.create_active_client(balance=200)
 
-        status, _response = RequestGenerator.POST_account_deposit(client["account_key"], client["token"], "", 100)
+        if operation == "transfer":
+            destination = ObjectGenerator.create_active_client()
+            status, _response = RequestGenerator.POST_account_transfer(
+                client["account_key"], destination["account_key"], client["token"], "", 100
+            )
+            assert ObjectGenerator.get_balance(destination) == 0
+        else:
+            method = getattr(RequestGenerator, f"POST_account_{operation}")
+            status, _response = method(client["account_key"], client["token"], "", 100)
 
         assert status == 400
+        assert _response["code"] == "QIT003008"
+        assert ObjectGenerator.get_balance(client) == 200
 
-    @known_bug("BUG-IDEM-LONG", "Idempotency-Key com 300 caracteres estoura a coluna e devolve 500; deveria ser 400")
-    def test_oversized_key_is_refused_not_a_500(self):
-        client = ObjectGenerator.create_active_client()
+    @pytest.mark.parametrize("operation", ["deposit", "withdraw", "transfer"])
+    def test_oversized_key_is_refused_not_a_500(self, operation):
+        client = ObjectGenerator.create_active_client(balance=200)
 
-        status, _response = RequestGenerator.POST_account_deposit(client["account_key"], client["token"], "k" * 300, 100)
+        if operation == "transfer":
+            destination = ObjectGenerator.create_active_client()
+            status, _response = RequestGenerator.POST_account_transfer(
+                client["account_key"], destination["account_key"], client["token"], "k" * 300, 100
+            )
+            assert ObjectGenerator.get_balance(destination) == 0
+        else:
+            method = getattr(RequestGenerator, f"POST_account_{operation}")
+            status, _response = method(client["account_key"], client["token"], "k" * 300, 100)
 
         assert status == 400
+        assert _response["code"] == "QIT000010"
+        assert ObjectGenerator.get_balance(client) == 200
 
-    @known_bug("BUG-IDEM-RACE", "duas requisicoes simultaneas com a mesma chave: so uma vence e as outras recebem 500 em vez de repetir a resposta")
     def test_simultaneous_requests_with_the_same_key_credit_once(self):
         client = ObjectGenerator.create_active_client()
         key = str(uuid4())
@@ -124,10 +137,42 @@ class TestIdempotency:
         assert len({body["operation_key"] for _, body in results}) == 1
         assert ObjectGenerator.get_balance(client) == 500
 
+    def test_simultaneous_withdrawals_with_the_same_key_debit_once(self):
+        client = ObjectGenerator.create_active_client(balance=500)
+        key = str(uuid4())
+
+        def call(_):
+            return RequestGenerator.POST_account_withdraw(client["account_key"], client["token"], key, 500)
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(call, range(8)))
+
+        assert {status for status, _ in results} == {200}, sorted(status for status, _ in results)
+        assert len({body["operation_key"] for _, body in results}) == 1
+        assert ObjectGenerator.get_balance(client) == 0
+
+    def test_simultaneous_transfers_with_the_same_key_charge_the_fee_once(self):
+        origin = ObjectGenerator.create_active_client(balance=1020)
+        destination = ObjectGenerator.create_active_client()
+        key = str(uuid4())
+
+        def call(_):
+            return RequestGenerator.POST_account_transfer(
+                origin["account_key"], destination["account_key"], origin["token"], key, 1000
+            )
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(call, range(8)))
+
+        assert {status for status, _ in results} == {200}, sorted(status for status, _ in results)
+        assert len({body["operation_key"] for _, body in results}) == 1
+        assert {body["fee"] for _, body in results} == {"0.20"}
+        assert ObjectGenerator.get_balance(origin) == 0
+        assert ObjectGenerator.get_balance(destination) == 1000
+
 
 class TestConcurrency:
     def test_parallel_withdrawals_never_overdraw(self):
-        """8 saques de TODO o saldo ao mesmo tempo: exatamente um passa, e o saldo termina em zero."""
         client = ObjectGenerator.create_active_client(balance=1000)
 
         def call(_):
@@ -178,7 +223,6 @@ class TestConcurrency:
         assert ObjectGenerator.get_balance(client) == 800
 
     def test_crossed_transfers_do_not_deadlock(self):
-        """A->B e B->A ao mesmo tempo: nenhum travamento e o dinheiro continua somando igual."""
         a = ObjectGenerator.create_active_client(balance=100000)
         b = ObjectGenerator.create_active_client(balance=100000)
 

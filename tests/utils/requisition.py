@@ -85,4 +85,3 @@ class BaseConnectorResponse:
         except Exception as ex:
             print(ex)
             ...
-            # logger warning

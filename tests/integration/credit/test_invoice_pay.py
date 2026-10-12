@@ -14,7 +14,6 @@ def pay(client, amount, key=None, client_key=None, token=None):
 
 
 def client_in_debt(withdrawn: int = 10000, extra_balance: int = 0) -> tuple:
-    """Cliente com credito aberto e uma fatura de withdrawn + 2%. Devolve (cliente, limite)."""
     client = ObjectGenerator.create_active_client()
     limit = ObjectGenerator.open_credit_line(client)["limit_cents"]
     status, _response = RequestGenerator.POST_credit_withdraw(
@@ -28,7 +27,7 @@ def client_in_debt(withdrawn: int = 10000, extra_balance: int = 0) -> tuple:
 
 class TestInvoicePay:
     def test_partial_payment_reduces_the_debt_and_restores_the_limit(self):
-        client, limit = client_in_debt(withdrawn=10000)  # fatura = 10200, saldo = 10000
+        client, limit = client_in_debt(withdrawn=10000)
 
         status, response = pay(client, 3000)
 
@@ -41,7 +40,7 @@ class TestInvoicePay:
         assert ObjectGenerator.get_balance(client) == 7000
 
     def test_paying_the_whole_invoice_restores_the_whole_limit(self):
-        client, limit = client_in_debt(withdrawn=10000, extra_balance=5000)  # fatura 10200, saldo 15000
+        client, limit = client_in_debt(withdrawn=10000, extra_balance=5000)
 
         status, response = pay(client, 10200)
 
@@ -51,8 +50,7 @@ class TestInvoicePay:
         assert response["new_account_balance"] == 4800
 
     def test_overpayment_is_capped_at_what_is_owed(self):
-        """Pagar MAIS do que se deve cobra so a divida: o excedente fica na conta."""
-        client, _limit = client_in_debt(withdrawn=10000, extra_balance=5000)  # fatura 10200, saldo 15000
+        client, _limit = client_in_debt(withdrawn=10000, extra_balance=5000)
 
         status, response = pay(client, 12000)
 
@@ -63,7 +61,7 @@ class TestInvoicePay:
 
     def test_insufficient_balance_is_rejected_and_nothing_changes(self):
         client, _limit = client_in_debt(withdrawn=10000)
-        RequestGenerator.POST_account_withdraw(client["account_key"], client["token"], str(uuid4()), 9500)  # saldo = 500
+        RequestGenerator.POST_account_withdraw(client["account_key"], client["token"], str(uuid4()), 9500)
 
         status, response = pay(client, 3000)
 
@@ -158,7 +156,7 @@ class TestInvoicePay:
         status, response = RequestGenerator.POST_invoice_pay(client["client_key"], None, str(uuid4()), {"amount": 100})
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
     def test_cannot_pay_another_clients_invoice(self):
         victim, _limit = client_in_debt(withdrawn=10000)

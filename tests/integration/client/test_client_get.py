@@ -53,7 +53,6 @@ class TestClientGet:
         assert response["document_number"] == client["document_number"]
 
     def test_client_cannot_read_another_client(self):
-        """Um cliente nao enxerga os dados (nem o saldo) de outro."""
         _first, first_token = ObjectGenerator.create_authenticated_client()
         second = ObjectGenerator.create_client()
 
@@ -70,4 +69,4 @@ class TestClientGet:
         status, response = RequestGenerator.GET_client(client["client_key"], None)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"

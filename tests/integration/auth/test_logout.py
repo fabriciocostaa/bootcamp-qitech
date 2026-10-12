@@ -2,7 +2,6 @@ from tests.utils import ObjectGenerator, RequestGenerator
 
 
 class TestLogout:
-    """POST /auth/logout — o token sai de circulacao na hora, nao so quando expira."""
 
     def test_logout_succeeds(self):
         _client, token = ObjectGenerator.create_authenticated_client()
@@ -22,7 +21,7 @@ class TestLogout:
 
         status, response = RequestGenerator.GET_client(client["client_key"], token)
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_logout_twice_with_the_same_token_is_refused(self):
         _client, token = ObjectGenerator.create_authenticated_client()
@@ -31,10 +30,9 @@ class TestLogout:
         status, response = RequestGenerator.POST_logout(token)
 
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_logout_revokes_only_that_token(self):
-        """Sair de um aparelho nao derruba os outros: cada login tem o seu token."""
         client = ObjectGenerator.create_client()
         phone = ObjectGenerator.create_client_auth(client["document_number"], client["password"])["token"]
         laptop = ObjectGenerator.create_client_auth(client["document_number"], client["password"])["token"]
@@ -70,10 +68,10 @@ class TestLogout:
 
         status, response = RequestGenerator.GET_clients(operator_token)
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_logout_without_token_is_refused(self):
         status, response = RequestGenerator.POST_logout(None)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"

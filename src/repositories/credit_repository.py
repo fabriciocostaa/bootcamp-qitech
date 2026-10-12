@@ -38,7 +38,6 @@ class CreditRepository:
 
 
     def deduct_limit(self, credit_line: CreditLine, amount: int) -> None:
-        """Deduz o valor do limite disponível, sem fazer commit imediato."""
         credit_line.available_limit -= amount
         self.session.add(credit_line)
         self.session.flush()

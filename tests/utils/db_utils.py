@@ -35,37 +35,6 @@ SEED_MISSING_VARIABLES = (
 
 
 class DbUtils:
-    """Apaga o banco inteiro e o recria do zero — quando alguém chama.
-
-    Não existe limpeza automática neste projeto. O `rollback()` roda no
-    teste que o chamar, na linha em que for chamado, e em mais lugar
-    nenhum. Todos os testes dividem o mesmo banco, e cada um enxerga o
-    que os anteriores deixaram pra trás.
-
-    O nome engana um pouco: isto não desfaz uma transação. Ele derruba
-    o schema `public` com tudo que estiver dentro e roda o
-    `database/database.sql` de novo — tabelas vazias e os status do
-    INSERT de volta.
-
-    Depois de recriar, ele REPÕE o que a API assume que já existe: o
-    operador (sem ele nenhuma rota de operador funciona) e a conta de
-    receita do banco (sem ela toda transferência quebra, porque a taxa
-    precisa de um destino). Esses dois nascem de um seed, não do SQL; se
-    o rollback não os devolvesse, o primeiro teste de operador depois de
-    uma limpeza falharia por um motivo que nada tem a ver com ele.
-
-    Quando o seu teste precisa chamar: sempre que alguma asserção
-    depender de QUANTAS linhas existem no banco — contar, listar,
-    paginar, filtrar. Nesses casos `DbUtils.rollback()` é a primeira
-    linha do teste, antes de criar qualquer coisa (o exemplo está em
-    `tests/integration/test_sample_entities.py`). Um teste que só olha
-    as entidades que ele mesmo criou, pela chave que recebeu de volta,
-    não precisa de limpeza nenhuma — e fica mais rápido sem ela.
-
-    A limpeza acontece pela mesma conexão que a aplicação usa (a
-    DATABASE_URL), e não por um programa externo: quem tem Docker
-    rodando já tem tudo que precisa.
-    """
 
     @staticmethod
     def database_url() -> str:

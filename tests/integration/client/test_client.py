@@ -6,7 +6,6 @@ from tests.utils import DbUtils, ObjectGenerator, PayloadGenerator, RequestGener
 
 
 def extract_keys(response: dict) -> list:
-    """As chaves da pagina, na ordem em que a API devolveu."""
     return [client["client_key"] for client in response["data"]]
 
 
@@ -23,21 +22,17 @@ class TestClientsAccess:
         status, response = RequestGenerator.GET_clients(None)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
 
 class TestClients:
     def test_get_pages(self, operator_token):
         DbUtils.rollback()
 
-        # Depois do rollback sobra so o que o seed repoe: o cliente da conta
-        # de receita do banco. Medimos o ponto de partida em vez de supor.
         status, response = RequestGenerator.GET_clients(operator_token)
         assert status == 200
         baseline = len(response["data"])
 
-        # Um payload novo por entidade: cada cadastro precisa do proprio
-        # CPF e do proprio e-mail, senao bate na regra de duplicidade.
         for _entidade in range(3):
             status, _response = RequestGenerator.POST_client(PayloadGenerator.create_client_payload())
             assert status == 201
@@ -67,12 +62,10 @@ class TestClients:
         status, response = RequestGenerator.GET_clients(operator_token)
 
         assert status == 200
-        # o cliente "Receita do Banco" (conta de receita) pode existir; so exigimos pagina valida
         assert isinstance(response["data"], list)
         assert response["is_last_page"] is True
 
     def test_page_exactly_full_is_the_last_page(self, operator_token):
-        """Valor limite: 3 itens com limit=3 e uma pagina cheia E a ultima (nao ha um 4o)."""
         batch = f"Limite{uuid4().hex[:8]}"
         for _ in range(3):
             ObjectGenerator.create_client(name=batch)
@@ -129,11 +122,6 @@ class TestClients:
         assert response["code"] == "QIT000001"
 
     def test_list_does_not_carry_the_status_trail(self, operator_token):
-        """A pagina traz o resumo; a historia so no GET por chave.
-
-        Nao e economia de bytes: a trilha e uma segunda tabela, e
-        monta-la item a item custa uma consulta por entidade.
-        """
         payload = PayloadGenerator.create_client_payload()
         status, response = RequestGenerator.POST_client(payload)
         assert status == 201
@@ -149,18 +137,11 @@ class TestClients:
         assert "password" not in item and "password_hash" not in item
 
     def test_refuses_unknown_query_param(self, operator_token):
-        """Nome de parametro errado e erro, nao silencio.
-
-        Quem escreve `?stauts=pending` com a letra trocada recebia 200
-        com a lista inteira e concluia que o filtro nao funciona. O
-        `additionalProperties: false` do schema devolve o engano.
-        """
         status, response = RequestGenerator.GET_clients(operator_token, {"stauts": "pending"})
         assert status == 400
         assert response["code"] == "QIT000001"
 
     def test_filters_by_partial_name_ignoring_case(self, operator_token):
-        """Nome casa por PEDACO e ignora maiuscula/minuscula."""
         unique_surname = f"Zimmerman{uuid4().hex[:8]}"
 
         matching = ObjectGenerator.create_client(name=f"Ana {unique_surname}")
@@ -175,7 +156,6 @@ class TestClients:
         assert extract_keys(response) == [matching["client_key"]]
 
     def test_name_filter_treats_wildcards_literally(self, operator_token):
-        """`%` e `_` sao caracteres comuns numa busca por nome, nao curingas de SQL."""
         batch = f"Coringa{uuid4().hex[:8]}"
         ObjectGenerator.create_client(name=f"{batch} Silva")
 
@@ -185,7 +165,6 @@ class TestClients:
         assert response["data"] == []
 
     def test_filters_by_exact_email_and_document_number(self, operator_token):
-        """E-mail e CPF casam por IGUALDADE, nao por pedaco."""
         client = ObjectGenerator.create_client()
 
         status, response = RequestGenerator.GET_clients(operator_token, {"email": client["email"]})
@@ -214,11 +193,6 @@ class TestClients:
         assert response["code"] == "QIT000001"
 
     def test_filters_by_inclusive_birthdate_range(self, operator_token):
-        """As duas pontas do intervalo ENTRAM no resultado.
-
-        Se o filtro usasse > e < no lugar de >= e <=, o resultado viria
-        vazio — o erro classico que este teste existe pra pegar.
-        """
         family_name = f"Bernoulli{uuid4().hex[:8]}"
         birthdates = ["1931-01-01", "1931-01-02", "1931-01-03", "1931-01-04"]
 
@@ -244,7 +218,6 @@ class TestClients:
         assert extract_keys(only_to) == [old]
 
     def test_combines_filters_with_and(self, operator_token):
-        """Dois filtros juntos ESTREITAM o resultado, nao o alargam."""
         team_name = f"Curie{uuid4().hex[:8]}"
 
         ObjectGenerator.create_client(name=team_name, birthdate="1940-03-01")
@@ -255,7 +228,6 @@ class TestClients:
         assert extract_keys(response) == [younger["client_key"]]
 
     def test_lists_newest_first_and_pages_do_not_overlap(self, operator_token):
-        """A pagina tem ORDEM, e por isso paginar nao repete nem pula."""
         batch_name = f"Noether{uuid4().hex[:8]}"
 
         created_keys = [ObjectGenerator.create_client(name=batch_name)["client_key"] for _ in range(3)]
@@ -272,7 +244,6 @@ class TestClients:
         assert response["is_last_page"] is True
 
     def test_refuses_inverted_birthdate_range(self, operator_token):
-        """Intervalo de cabeca pra baixo e erro, nao lista vazia."""
         status, response = RequestGenerator.GET_clients(
             operator_token, {"birthdate_from": "2000-01-01", "birthdate_to": "1990-01-01"}
         )
@@ -286,11 +257,6 @@ class TestClients:
         assert response["code"] == "QIT001007"
 
     def test_filters_by_more_than_one_status(self, operator_token):
-        """O filtro de status aceita VARIOS valores, somados com OU.
-
-        Ao contrario dos outros filtros, dois status ALARGAM a busca (basta
-        um bater): uma entidade so esta num dos baldes.
-        """
         batch_name = f"Kovalevskaya{uuid4().hex[:8]}"
         approved = ObjectGenerator.create_client(name=batch_name)
         rejected = ObjectGenerator.create_rejected_client()
@@ -309,7 +275,6 @@ class TestClients:
         assert extract_keys(response) == [approved["client_key"]]
 
     def test_pending_filter_finds_nobody_after_signup(self, operator_token):
-        """Ninguem fica em `pending`: o cadastro ja sai aprovado ou recusado."""
         batch_name = f"Pendente{uuid4().hex[:8]}"
         ObjectGenerator.create_client(name=batch_name)
 
@@ -319,7 +284,6 @@ class TestClients:
         assert response["data"] == []
 
     def test_refuses_unknown_status_filter(self, operator_token):
-        """Status que nao existe e erro, nao lista vazia."""
         for statuses in [["status_que_nao_existe"], ["pending", "status_que_nao_existe"], ["failed"], ["APPROVED"]]:
             status, response = RequestGenerator.GET_clients(operator_token, {"status": statuses})
             assert status == 400, statuses

@@ -2,14 +2,6 @@ import random
 import re
 
 
-# Os mocks (mocks/mappings/*.json) decidem o desfecho pelo CONTEUDO do CPF:
-#   "99" em qualquer ponto -> o KYC recusa a identidade
-#   "88" em qualquer ponto -> o bureau de risco devolve score baixo
-#   "77" em qualquer ponto -> o bureau de risco fica indisponivel (503)
-# Por isso um CPF aleatorio qualquer NAO serve para teste: ~10% deles
-# conteriam "99" e o teste ficaria vermelho sem motivo (flaky). O gerador
-# padrao evita todos esses trechos; os cenarios de recusa pedem o trecho
-# de proposito, com generate_cpf_containing().
 KYC_REJECTED_FRAGMENT = "99"
 RISK_LOW_SCORE_FRAGMENT = "88"
 RISK_UNAVAILABLE_FRAGMENT = "77"
@@ -29,22 +21,17 @@ def _with_check_digits(nine_digits: list) -> str:
 class RandomGenerator:
     @staticmethod
     def generate_cpf() -> str:
-        """Um CPF valido que NAO dispara nenhum comportamento especial dos mocks."""
         while True:
             cpf = _with_check_digits([random.randrange(10) for _ in range(9)])
             digits = re.sub(r"\D", "", cpf)
             if len(set(digits)) == 1:
-                continue  # 111.111.111-11 passa na conta mas a API recusa
+                continue
             if any(fragment in cpf for fragment in _MAGIC_FRAGMENTS):
                 continue
             return cpf
 
     @staticmethod
     def generate_cpf_containing(fragment: str) -> str:
-        """Um CPF valido que contem `fragment` (ex.: "99") logo no comeco.
-
-        Os outros trechos magicos ficam de fora, pra que so UM mock reaja.
-        """
         assert len(fragment) == 2 and fragment.isdigit()
         others = [f for f in _MAGIC_FRAGMENTS if f != fragment]
         while True:

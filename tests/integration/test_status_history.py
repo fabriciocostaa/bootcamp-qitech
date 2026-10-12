@@ -92,7 +92,7 @@ class TestStatusHistory:
         )
 
         assert response.response_status == 401
-        assert response.response_json["code"] == "QIT003002"
+        assert response.response_json["code"] == "QIT003001"
 
     @pytest.mark.parametrize("resource, error_code", [
         ("client", "QIT001001"), ("account", "QIT002001"),

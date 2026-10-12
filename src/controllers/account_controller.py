@@ -12,16 +12,15 @@ class AccountController(BaseController):
     def __init__(self) ->None:
         super().__init__(__name__)
         self.account_repository = AccountRepository(self.context) 
-        self.client_repository = ClientRepository(self.context) #compartilham o mesmo contexto, e portanto a mesma sessão, e portanto a mesma transação
+        self.client_repository = ClientRepository(self.context)
         self.operator_repository = OperatorRepository(self.context)
 
     def get_status_history(self, account_key: str) -> dict:
         self.logger.debug(f"Buscando histórico da conta {account_key}")
 
-        # Geralmente histórico de conta financeira só o próprio cliente ou um operador pode ver
         account = self.account_repository.get_by_key(account_key)
         if account is None:
-            raise NotFoundAccount(account_key) # Lembre-se de importar ou criar este erro
+            raise NotFoundAccount(account_key)
 
         self.require_operator() 
 
@@ -40,20 +39,21 @@ class AccountController(BaseController):
         actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
         if actor is None:
             raise AccountNotOwnedByClient()
+        self.session.refresh(actor, with_for_update={"key_share": True})
         request_hash = self._hash_request(account_key=account_key, amount=amount)
 
-        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
-        if operation_exist is not None:
-            if operation_exist.request_hash != request_hash:
-                raise IdempotencyKeyConflict(idempotency_key)
-            return accountDTO.operation_to_dict(operation_exist)
-        
         account = self.account_repository.get_by_key_for_update(account_key)
 
         if account is None:
             raise NotFoundAccount(account_key)
         
         self._check_account_ownership(account)
+
+        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+        if operation_exist is not None:
+            if operation_exist.kind.enumerator != OperationKind.DEPOSIT or operation_exist.request_hash != request_hash:
+                raise IdempotencyKeyConflict(idempotency_key)
+            return accountDTO.operation_to_dict(operation_exist)
 
         if not isinstance(amount, int):
             raise InvalidAmount(amount)
@@ -84,21 +84,21 @@ class AccountController(BaseController):
         actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
         if actor is None:
             raise AccountNotOwnedByClient()
+        self.session.refresh(actor, with_for_update={"key_share": True})
         request_hash = self._hash_request(account_key=account_key, amount=amount)
 
-        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
-        if operation_exist is not None:
-            if operation_exist.request_hash != request_hash:
-                raise IdempotencyKeyConflict(idempotency_key)
-            return accountDTO.operation_to_dict(operation_exist)
-        
         account = self.account_repository.get_by_key_for_update(account_key)
 
         if account is None:
             raise NotFoundAccount(account_key)
 
         self._check_account_ownership(account)
-        
+
+        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+        if operation_exist is not None:
+            if operation_exist.kind.enumerator != OperationKind.WITHDRAW or operation_exist.request_hash != request_hash:
+                raise IdempotencyKeyConflict(idempotency_key)
+            return accountDTO.operation_to_dict(operation_exist)
 
         if not isinstance(amount, int):
             raise InvalidAmount(amount)
@@ -138,14 +138,9 @@ class AccountController(BaseController):
         actor = self.client_repository.get_by_key(self.context.authenticated_client_key)
         if actor is None:
             raise AccountNotOwnedByClient()
+        self.session.refresh(actor, with_for_update={"key_share": True})
         request_hash = self._hash_request(account_from_key=account_from_key, account_to_key=account_to_key, amount=amount)
 
-        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
-        if operation_exist is not None:
-            if operation_exist.request_hash != request_hash:
-                raise IdempotencyKeyConflict(idempotency_key)
-            return accountDTO.operation_to_dict(operation_exist)
-        
         fee = calculate_transfer_fee(amount)
         total_debited = amount + fee
 
@@ -164,6 +159,12 @@ class AccountController(BaseController):
             raise NotFoundAccount(account_to_key)
 
         self._check_account_ownership(account_from)
+
+        operation_exist = self.account_repository.get_operation_by_idempotency(actor.id, idempotency_key)
+        if operation_exist is not None:
+            if operation_exist.kind.enumerator != OperationKind.TRANSFER or operation_exist.request_hash != request_hash:
+                raise IdempotencyKeyConflict(idempotency_key)
+            return accountDTO.operation_to_dict(operation_exist)
 
         if account_from.status.enumerator != AccountStatus.ACTIVE:
             raise AccountNotActive(account_from_key)
@@ -245,52 +246,36 @@ class AccountController(BaseController):
         }
 
     def _parse_date(self, raw_date: str):
-        """Converte a data, ou recusa com 422 em vez de 500."""
         try:
             return date.fromisoformat(raw_date)
         except ValueError:
             raise InvalidDate(f"Invalid date format: {raw_date}. Expected format: YYYY-MM-DD")
 
     def update_status(self, account_key: str, new_status: str) -> dict:
-        """
-        Permite que um operador mude o status de uma conta (ex: BLOQUEAR ou ATIVAR).
-        """
-        # 1. Garante que quem está chamando é um operador
         self.require_operator() 
         
-        # 2. Busca a conta travando a linha (for_update) para evitar que
-        # ocorram transações enquanto o status está sendo mudado
         account = self.account_repository.get_by_key_for_update(account_key)
         
         if account is None:
             raise NotFoundAccount(account_key)
 
-        # 3. Busca o operador
         operator_key = self.operator_key()
         operator = self.operator_repository.get_by_key(operator_key) 
 
-        # 4. Verifica se a mudança faz sentido (Regras de Negócio)
         self._check_status_can_change(account, new_status)
 
-        # 5. Efetua a mudança no banco através do repositório
         self.account_repository.update_status(account, new_status, operator)
         self.session.commit()
 
-        # 6. Retorna o DTO da conta atualizada
         return accountDTO.only_obj_key(account)
 
 
     def _check_status_can_change(self, account: Account, new_status: str) -> None:
-        """
-        As regras do que 'pode' e 'não pode' na mudança de status da conta.
-        """
         old_status = account.status.enumerator
         print(old_status)
 
-        # Se a conta já está no status que o operador pediu, não faz sentido mudar
         if old_status == new_status:
             raise AccountInvalidStatus(old_status, new_status)
 
-        # Uma vez encerrada, é o fim da vida dela.
         if old_status == "CLOSED": 
             raise AccountInvalidStatus(old_status, new_status)

@@ -11,7 +11,6 @@ class RiskConnector(RestConnector):
         )
 
     def get_risk_profile(self, document_number: str):
-        # consulta crédito simulado no mock
         return self.send(
             endpoint=f"/api/risk/score/{document_number}",
             method="GET"

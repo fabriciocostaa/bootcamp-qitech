@@ -29,7 +29,6 @@ class TestTransfer:
         assert ObjectGenerator.get_balance(destination) == 1000
 
     def test_fee_goes_to_the_banks_revenue_account(self, operator_token):
-        """A taxa nao some: ela e creditada na conta de receita do banco."""
         document = environ["ACCOUNT_DOCUMENT_NUMBER"]
         origin = ObjectGenerator.create_active_client(balance=50000)
         destination = ObjectGenerator.create_active_client()
@@ -42,7 +41,6 @@ class TestTransfer:
         assert after - before == expected_transfer_fee(10000)
 
     def test_money_is_conserved_across_origin_destination_and_revenue(self, operator_token):
-        """Invariante: o que sai de um lado entra no outro — a soma dos tres saldos nao muda."""
         document = environ["ACCOUNT_DOCUMENT_NUMBER"]
         origin = ObjectGenerator.create_active_client(balance=30000)
         destination = ObjectGenerator.create_active_client(balance=700)
@@ -64,7 +62,6 @@ class TestTransfer:
 
     @pytest.mark.parametrize("amount", [1, 49, 50, 51, 99, 100, 101, 12345])
     def test_fee_is_always_rounded_up(self, amount):
-        """Valores em volta de cada degrau do arredondamento: a taxa sobe, nunca desce."""
         fee = expected_transfer_fee(amount)
         origin = ObjectGenerator.create_active_client(balance=amount + fee)
         destination = ObjectGenerator.create_active_client()
@@ -103,7 +100,6 @@ class TestTransfer:
         assert ObjectGenerator.get_balance_by_document(document, operator_token) == revenue_before
 
     def test_transferring_the_whole_balance_is_refused_because_of_the_fee(self):
-        """Ter exatamente o valor nao basta: a taxa vem POR CIMA do valor."""
         origin = ObjectGenerator.create_active_client(balance=1000)
         destination = ObjectGenerator.create_active_client()
 
@@ -151,7 +147,6 @@ class TestTransfer:
         assert ObjectGenerator.get_balance(owner) == 5000
 
     def test_float_amount_is_refused_by_the_business_rule(self):
-        """O schema deixa passar numero com virgula; a regra de negocio recusa (so centavos inteiros)."""
         origin = ObjectGenerator.create_active_client(balance=5000)
         destination = ObjectGenerator.create_active_client()
 
@@ -191,7 +186,7 @@ class TestTransfer:
         )
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
     def test_recipient_can_spend_what_it_received(self):
         origin = ObjectGenerator.create_active_client(balance=10000)

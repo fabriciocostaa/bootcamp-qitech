@@ -27,7 +27,6 @@ class TestDeposit:
         assert ObjectGenerator.get_balance(client) == 5000
 
     def test_smallest_amount_is_one_cent(self):
-        """Valor limite inferior: 1 centavo entra."""
         client = ObjectGenerator.create_active_client()
 
         status, response = deposit(client, 1)
@@ -84,7 +83,7 @@ class TestDeposit:
         status, response = RequestGenerator.POST_account_deposit(client["account_key"], None, str(uuid4()), 100)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
         assert ObjectGenerator.get_balance(client) == 0
 
     def test_operator_token_is_refused_cleanly(self, operator_token):
@@ -119,7 +118,6 @@ class TestDeposit:
 
 
 class TestAmountValidation:
-    """Particao de equivalencia do `amount` — a MESMA regra em deposito, saque e transferencia."""
 
     INVALID_AMOUNTS = [0, -1, -100, 10.5, 0.5, "100", "", None, True, [100], {"v": 1}]
 

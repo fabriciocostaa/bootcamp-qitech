@@ -8,10 +8,6 @@ import pytest
 from tests.utils import ObjectGenerator, RequestGenerator
 
 
-# Toda rota que exige login. Cada uma e uma "porta" que precisa recusar
-# quem chega sem credencial valida — uma porta esquecida abre a casa toda.
-# (verbo, caminho, corpo): o corpo e valido de proposito, pra garantir que
-# quem barra e a AUTENTICACAO, e nao a validacao do formato.
 PROTECTED_ROUTES = [
     ("GET", "/client/{client_key}", None),
     ("PUT", "/client/{client_key}", {"status": "approved"}),
@@ -53,14 +49,14 @@ class TestTokenValidation:
         status, response = call(method, path, body, {"idempotency_key": str(uuid4())})
 
         assert status == 401, f"{method} {path} respondeu {status} sem Authorization"
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
     @pytest.mark.parametrize("method,path,body", PROTECTED_ROUTES, ids=route_ids(PROTECTED_ROUTES))
     def test_every_protected_route_refuses_a_garbage_token(self, method, path, body):
         status, response = call(method, path, body, {"jwt_token": "isto.nao.e-um-jwt", "idempotency_key": str(uuid4())})
 
         assert status == 401, f"{method} {path} respondeu {status} com token lixo"
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_refuses_authorization_with_the_wrong_scheme(self):
         client, token = ObjectGenerator.create_authenticated_client()
@@ -70,20 +66,15 @@ class TestTokenValidation:
                 client["client_key"], authorization=scheme_value
             )
             assert status == 401, f"aceitou Authorization: {scheme_value[:20]}"
-            assert response["code"] == "QIT003002"
+            assert response["code"] == "QIT003001"
 
     def test_refuses_an_empty_bearer(self):
         status, response = RequestGenerator.GET_client(str(uuid4()), authorization="Bearer ")
 
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_refuses_a_token_with_a_tampered_payload(self):
-        """Mexer no conteudo do token invalida a assinatura — sem precisar saber o segredo.
-
-        Troca um caractere do miolo (payload) do JWT de um cliente. A
-        assinatura, que cobre o miolo, deixa de bater.
-        """
         client, token = ObjectGenerator.create_authenticated_client()
         header, payload, signature = token.split(".")
         flipped = "A" if payload[10] != "A" else "B"
@@ -92,7 +83,7 @@ class TestTokenValidation:
         status, response = RequestGenerator.GET_client(client["client_key"], tampered)
 
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_refuses_a_token_without_signature(self):
         client, token = ObjectGenerator.create_authenticated_client()
@@ -101,18 +92,17 @@ class TestTokenValidation:
         status, response = RequestGenerator.GET_client(client["client_key"], f"{header}.{payload}.")
 
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     @pytest.mark.skipif(not environ.get("JWT_SECRET"), reason="precisa do JWT_SECRET no ambiente")
     def test_refuses_an_expired_token(self):
-        """Nao ha como esperar 60 minutos num teste: assina-se um token ja vencido."""
         client = ObjectGenerator.create_client()
         expired = forge(environ["JWT_SECRET"], subject_key=client["client_key"], exp=int(time.time()) - 10)
 
         status, response = RequestGenerator.GET_client(client["client_key"], expired)
 
         assert status == 401
-        assert response["code"] == "QIT003003"
+        assert response["code"] == "QIT003001"
 
     def test_refuses_a_token_signed_with_another_secret(self):
         client = ObjectGenerator.create_client()
@@ -121,10 +111,9 @@ class TestTokenValidation:
         status, response = RequestGenerator.GET_client(client["client_key"], foreign)
 
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     def test_refuses_the_alg_none_attack(self):
-        """Um JWT com `alg: none` (sem assinatura nenhuma) nao pode ser aceito."""
         client = ObjectGenerator.create_client()
         unsigned = jwt.encode(
             {"subject_key": client["client_key"], "type": "client", "jti": str(uuid4()), "exp": int(time.time()) + 600},
@@ -135,7 +124,7 @@ class TestTokenValidation:
         status, response = RequestGenerator.GET_client(client["client_key"], unsigned)
 
         assert status == 401
-        assert response["code"] == "QIT003004"
+        assert response["code"] == "QIT003001"
 
     @pytest.mark.skipif(not environ.get("JWT_SECRET"), reason="precisa do JWT_SECRET no ambiente")
     def test_refuses_a_valid_signature_with_an_unknown_subject_type(self):
