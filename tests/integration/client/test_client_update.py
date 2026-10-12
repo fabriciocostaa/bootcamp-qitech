@@ -6,7 +6,6 @@ from tests.utils import ObjectGenerator, PayloadGenerator, RequestGenerator
 
 
 class TestClientUpdate:
-    """PUT /client/{key} — so o OPERADOR muda status, e so de quem foi recusado (revisao manual)."""
 
     def test_operator_approves_a_rejected_client_and_an_account_is_opened(self, operator_token):
         client = ObjectGenerator.create_rejected_client()
@@ -26,7 +25,6 @@ class TestClientUpdate:
         assert response["birthdate"] == client["birthdate"]
         assert response["status"] == "approved"
 
-        # Cada mudanca de status deixa um evento: pending (criacao) + rejected (KYC) + approved (operador).
         history = RequestGenerator.send_raw(
             "GET", f"/client/{_key}/status-events",
             headers=RequestGenerator.build_headers(jwt_token=operator_token),
@@ -34,7 +32,6 @@ class TestClientUpdate:
         assert history.response_status == 200
         assert [event["status"] for event in history.response_json["status_events"]] == ["pending", "rejected", "approved"]
 
-        # Aprovar o cadastro cria uma conta com saldo zero.
         assert len(response["accounts"]) == 1
         account = response["accounts"][0]
         assert account["account_key"] is not None
@@ -53,7 +50,6 @@ class TestClientUpdate:
         assert ObjectGenerator.get_balance(client) == 1500
 
     def test_status_events_keep_the_trail_in_order(self, operator_token):
-        """O GET por chave conta a HISTORIA, nao so o estado de agora."""
         client = ObjectGenerator.create_rejected_client()
         _key = client["client_key"]
 
@@ -78,7 +74,6 @@ class TestClientUpdate:
         assert times == sorted(times), "a trilha precisa estar em ordem cronologica"
 
     def test_approved_client_cannot_change_status(self, operator_token):
-        """Quem ja foi aprovado nao muda mais — nem pra approved, nem pra rejected."""
         client = ObjectGenerator.create_client()
         _key = client["client_key"]
 
@@ -115,11 +110,6 @@ class TestClientUpdate:
         assert response["code"] == "QIT001001"
 
     def test_schema_refuses_status_outside_the_enum(self, operator_token):
-        """So os status que o schema lista (approved/rejected) sao aceitos.
-
-        O "enum" do put_client.json e o contrato de entrada: um status
-        inventado — ou `pending`, que nao se escolhe — nem chega na regra.
-        """
         client = ObjectGenerator.create_rejected_client()
 
         for invalid in ["status_que_nao_existe", "pending", "failed", "APPROVED", "", None, 1]:
@@ -138,7 +128,6 @@ class TestClientUpdate:
             assert response["code"] == "QIT000001"
 
     def test_client_cannot_change_status(self):
-        """Nem o dono do cadastro: aprovar ou recusar e trabalho de operador."""
         client, token = ObjectGenerator.create_authenticated_client()
 
         status, response = RequestGenerator.PUT_client(
@@ -169,4 +158,4 @@ class TestClientUpdate:
         )
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"

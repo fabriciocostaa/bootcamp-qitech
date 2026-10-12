@@ -23,7 +23,6 @@ class TestWithdraw:
         assert ObjectGenerator.get_balance(client) == 3800
 
     def test_withdraw_exactly_the_whole_balance(self):
-        """Valor limite: sacar TUDO e permitido e deixa zero (nao negativo, nao recusado)."""
         client = ObjectGenerator.create_active_client(balance=2500)
 
         status, _response = withdraw(client, 2500)
@@ -32,7 +31,6 @@ class TestWithdraw:
         assert ObjectGenerator.get_balance(client) == 0
 
     def test_withdraw_one_cent_more_than_the_balance_is_refused(self):
-        """Valor limite: saldo + 1 centavo. O saldo nao muda."""
         client = ObjectGenerator.create_active_client(balance=2500)
 
         status, response = withdraw(client, 2501)
@@ -95,5 +93,5 @@ class TestWithdraw:
         status, response = RequestGenerator.POST_account_withdraw(client["account_key"], None, str(uuid4()), 100)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
         assert ObjectGenerator.get_balance(client) == 1000

@@ -11,7 +11,6 @@ class KYCConnector(RestConnector):
         )
 
     def verify_identity(self, cpf: str, full_name: str):
-        # envia dados de identidade
         return self.send(
             endpoint="/kyc/verify",
             method="POST",

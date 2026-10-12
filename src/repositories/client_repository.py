@@ -7,21 +7,6 @@ from database import Context
 from models import Client, ClientStatus, ClientStatusEvent
 
 class ClientRepository:
-    """A camada que fala com o banco. Só aqui existe query.
-
-    Nenhuma regra de negócio mora aqui: esta classe busca, guarda e
-    atualiza — quem decide o que fazer com isso é o controller.
-
-    Repare no que ele recebe: o CONTEXTO do trabalho, e não a sessão
-    solta. A sessão é o que ele tira de lá na linha seguinte, e é tudo de
-    que precisa hoje — mas a assinatura já fala a língua do que viaja
-    entre as camadas. No dia em que o contexto carregar também o
-    identificador da requisição, nenhum construtor daqui até o resource
-    muda de forma.
-
-    É assim nos serviços da QI, e a linha é a mesma lá e aqui:
-    `self.session = context.db_session`.
-    """
 
     def __init__(self, context: Context) -> None:
         self.session = context.db_session
@@ -76,27 +61,6 @@ class ClientRepository:
         return self.session.query(ClientStatus).filter(ClientStatus.enumerator == enumerator).one()
 
     def list_page(self, limit: int, offset: int, filters: dict) -> list:
-        """A pagina, estreitada por quantos filtros vierem preenchidos.
-
-        Todo filtro segue a mesma forma: veio vazio, nao entra na query;
-        veio preenchido, vira mais um `.filter()`. Como cada um deles
-        acrescenta uma condicao a MESMA query, eles se somam com E — dois
-        filtros sempre devolvem menos linhas que um, nunca mais.
-
-        Repare que `ilike` e diferente de `==`: o nome casa por pedaco e
-        sem ligar pra maiuscula, enquanto e-mail e CPF exigem o valor
-        inteiro e exato. Essa diferenca e decisao de produto, nao detalhe
-        tecnico — quem procura uma pessoa lembra meio nome, mas quem
-        procura um CPF tem o CPF.
-
-        A ordenacao no fim nao e enfeite: `limit` e `offset` recortam
-        um conjunto, e um conjunto sem ordem pode voltar do banco em
-        qualquer sequencia. Sem o `order_by`, a pagina 2 tem permissao
-        de repetir uma linha da pagina 1 e sumir com outra. O desempate
-        por `id` existe porque duas entidades podem nascer no mesmo
-        instante — e ai `created_at` sozinho ainda deixaria a ordem em
-        aberto.
-        """
         query = self.session.query(Client)
 
         status_enumerators = filters.get("status_enumerators")

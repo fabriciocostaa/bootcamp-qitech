@@ -16,12 +16,6 @@ if not environ.get("APP_ENV") or environ.get("APP_ENV") in ("local", "test"):
 
 @pytest.fixture
 def operator_token() -> str:
-    """Um token de operador novo por teste.
-
-    Nao e session-scoped de proposito: um teste que faz logout com ele
-    (ou que roda depois de um DbUtils.rollback) nao pode sujar o teste
-    seguinte.
-    """
     from tests.utils.object_generator import ObjectGenerator
 
     return ObjectGenerator.operator_token()

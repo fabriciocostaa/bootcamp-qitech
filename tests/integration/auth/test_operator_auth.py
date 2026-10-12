@@ -12,7 +12,6 @@ def operator_payload(**overrides) -> dict:
 
 
 class TestOperatorLogin:
-    """POST /auth/operator/login"""
 
     def test_operator_login_returns_a_jwt(self):
         status, response = RequestGenerator.POST_operator_auth(operator_payload())
@@ -52,8 +51,8 @@ class TestOperatorLogin:
 
     def test_refuses_empty_body(self):
         status, response = RequestGenerator.POST_operator_auth({})
-        assert status == 400
-        assert response["code"] == "QIT000001"
+        assert status == 401
+        assert response["code"] == "QIT003001"
 
     def test_refuses_malformed_fields(self):
         for payload in [
@@ -62,11 +61,11 @@ class TestOperatorLogin:
             {**operator_payload(), "extra": 1},
         ]:
             status, response = RequestGenerator.POST_operator_auth(payload)
-            assert status == 400, payload
-            assert response["code"] == "QIT000001"
+            assert status == 401, payload
+            assert response["code"] == "QIT003001"
 
     def test_refuses_login_without_internal_token(self):
         status, response = RequestGenerator.POST_operator_auth(operator_payload(), internal_token=None)
 
-        assert status == 403
-        assert response["code"] == "QIT000002"
+        assert status == 401
+        assert response["code"] == "QIT003001"

@@ -16,9 +16,6 @@ class AccountRepository:
         account.client = client
         account.status = self.get_status(AccountStatus.ACTIVE)
 
-        # Mesma lógica que já vale pra cliente: o primeiro status
-        # também é um evento — o histórico começa completo, sem
-        # buraco entre "quando a conta nasceu" e a primeira mudança.
         first_event = AccountStatusEvent()
         first_event.status = account.status
         first_event.event_datetime = datetime.now()
@@ -89,7 +86,7 @@ class AccountRepository:
         operation.request_hash = request_hash
 
         self.session.add(operation)
-        self.session.flush()  # precisa do id pra linkar as transactions depois
+        self.session.flush()
         return operation
 
     def get_transaction_type(self, enumerator: str) -> TransactionType:
@@ -119,10 +116,6 @@ class AccountRepository:
         return transaction
 
     def get_accounts_for_update(self, *account_keys: str) -> dict[str, Account]:
-        """Trava N contas, sempre na mesma ordem (por account_key),
-        pra evitar deadlock entre operações concorrentes que envolvem
-        as mesmas contas em ordens diferentes.
-        """
         ordered_keys = sorted(set(account_keys))
         accounts = {}
 
@@ -157,8 +150,6 @@ class AccountRepository:
 
         out_transaction.related_transaction_id = in_transaction.id
 
-        # A tarifa só existe se fee > 0 — transferência sem custo não
-        # deveria gerar lançamento nenhum de taxa, nem de valor zero.
         if fee > 0:
             fee_debit_type = self.get_transaction_type(TransactionType.FEE_DEBIT)
             fee_credit_type = self.get_transaction_type(TransactionType.FEE_CREDIT)

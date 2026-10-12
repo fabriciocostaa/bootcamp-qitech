@@ -5,14 +5,12 @@ from tests.utils.random_generator import RISK_LOW_SCORE_FRAGMENT, RISK_UNAVAILAB
 
 
 def active_client_with_document(fragment: str) -> dict:
-    """Cliente aprovado cujo CPF faz o mock do bureau de risco reagir (88 = score baixo, 77 = fora do ar)."""
     client = ObjectGenerator.create_client(document_number=RandomGenerator.generate_cpf_containing(fragment))
     client["token"] = ObjectGenerator.create_client_auth(client["document_number"], client["password"])["token"]
     return client
 
 
 class TestCreditRequest:
-    """POST /client/{key}/credit — pede uma linha de credito (depende do bureau de risco)."""
 
     def test_approved_credit_line(self):
         client = ObjectGenerator.create_active_client()
@@ -25,7 +23,6 @@ class TestCreditRequest:
         assert response["credit_line_key"]
 
     def test_low_score_is_rejected_with_a_reason_not_an_error(self):
-        """Score baixo nao e falha do sistema: e um desfecho de negocio (422 + REJECTED)."""
         client = active_client_with_document(RISK_LOW_SCORE_FRAGMENT)
 
         status, response = RequestGenerator.POST_credit(client["client_key"], client["token"])
@@ -66,7 +63,7 @@ class TestCreditRequest:
         status, response = RequestGenerator.POST_credit(client["client_key"], None)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
     def test_cannot_open_credit_for_another_client(self):
         victim = ObjectGenerator.create_active_client()

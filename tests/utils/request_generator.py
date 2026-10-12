@@ -8,12 +8,6 @@ INTERNAL_TOKEN = environ.get("INTERNAL_TOKEN", "default_token")
 
 
 class RequestGenerator:
-    """Uma funcao por endpoint da API. Todas devolvem (status, corpo_json).
-
-    Os parametros opcionais existem pros testes NEGATIVOS: mandar sem
-    token, com o token errado, sem Idempotency-Key. O caminho feliz so
-    precisa dos argumentos obrigatorios.
-    """
 
     @staticmethod
     def build_headers(
@@ -26,7 +20,7 @@ class RequestGenerator:
         if internal_token is not None:
             headers["INTERNAL-TOKEN"] = internal_token
         if authorization is not None:
-            headers["Authorization"] = authorization  # valor cru, pra testar esquemas errados
+            headers["Authorization"] = authorization
         elif jwt_token is not None:
             headers["Authorization"] = f"Bearer {jwt_token}"
         if idempotency_key is not None:
@@ -35,7 +29,6 @@ class RequestGenerator:
 
     @staticmethod
     def send_raw(method: str, path: str, headers: dict = None, payload=None, params=None, data=None) -> BaseConnectorResponse:
-        """Sem nenhum atalho: o teste monta cabecalhos e corpo exatamente como quiser."""
         return ClientRequisition.send(method, path, payload=payload, headers=headers, query_params=params, data=data)
 
     @staticmethod
@@ -49,7 +42,6 @@ class RequestGenerator:
         )
         return response.response_status, response.response_json
 
-    # ------------------------------------------------------------ auth
     @staticmethod
     def POST_client_auth(payload: dict, **header_kwargs):
         return RequestGenerator._send("POST", "/auth/login", payload=payload, **header_kwargs)
@@ -62,7 +54,6 @@ class RequestGenerator:
     def POST_logout(jwt_token: str, **header_kwargs):
         return RequestGenerator._send("POST", "/auth/logout", jwt_token=jwt_token, **header_kwargs)
 
-    # ---------------------------------------------------------- client
     @staticmethod
     def POST_client(client_payload, **header_kwargs):
         return RequestGenerator._send("POST", "/client", payload=client_payload, **header_kwargs)
@@ -81,7 +72,6 @@ class RequestGenerator:
     def GET_clients(jwt_token: Optional[str], params: dict = None, **header_kwargs):
         return RequestGenerator._send("GET", "/clients", params=params, jwt_token=jwt_token, **header_kwargs)
 
-    # --------------------------------------------------------- account
     @staticmethod
     def POST_account_deposit(account_key: str, jwt_token: Optional[str], idempotency_key: Optional[str], amount, **header_kwargs):
         return RequestGenerator._send(
@@ -113,7 +103,6 @@ class RequestGenerator:
             "GET", f"/account/{account_key}/extract", params=params, jwt_token=jwt_token, **header_kwargs
         )
 
-    # ---------------------------------------------------------- credit
     @staticmethod
     def POST_credit(client_key: str, jwt_token: Optional[str], **header_kwargs):
         return RequestGenerator._send("POST", f"/client/{client_key}/credit", jwt_token=jwt_token, **header_kwargs)

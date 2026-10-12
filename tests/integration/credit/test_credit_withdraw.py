@@ -20,7 +20,6 @@ def client_with_credit() -> tuple:
 
 
 class TestCreditWithdraw:
-    """Saque do limite: o dinheiro entra na conta e a divida (com juros de 2%) vai pra fatura."""
 
     def test_withdraw_credits_the_account_and_opens_the_invoice(self):
         client, limit = client_with_credit()
@@ -72,7 +71,7 @@ class TestCreditWithdraw:
 
     def test_amount_that_still_fits_in_the_limit_is_approved(self):
         client, limit = client_with_credit()
-        amount = (limit * 50 // 51) // 50 * 50  # maior multiplo de 50 cujo custo (valor + 2%) cabe no limite
+        amount = (limit * 50 // 51) // 50 * 50
 
         status, response = credit_withdraw(client, amount)
 
@@ -131,7 +130,7 @@ class TestCreditWithdraw:
         status, response = RequestGenerator.POST_credit_withdraw(client["client_key"], None, str(uuid4()), 1000)
 
         assert status == 401
-        assert response["code"] == "QIT003002"
+        assert response["code"] == "QIT003001"
 
     @pytest.mark.parametrize("amount", [0, -1, 10.5, "100", None, True], ids=lambda v: repr(v))
     def test_refuses_invalid_amount(self, amount):

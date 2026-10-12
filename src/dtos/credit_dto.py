@@ -5,7 +5,6 @@ class creditDTO:
 
     @staticmethod
     def obj_to_dict(credit_line: CreditLine) -> dict:
-        """A entidade completa da linha de crédito."""
         dto = dict()
         dto["credit_line_key"] = credit_line.credit_line_key
         dto["client_id"] = credit_line.client_id
@@ -21,7 +20,6 @@ class creditDTO:
 
     @staticmethod
     def only_obj_key(credit_line: CreditLine) -> dict:
-        """Devolve apenas a chave, mantendo o padrão usado no cadastro de clientes."""
         dto = dict()
         dto["credit_line_key"] = credit_line.credit_line_key
         return dto

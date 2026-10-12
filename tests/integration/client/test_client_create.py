@@ -10,7 +10,6 @@ REQUIRED_FIELDS = ["name", "email", "document_number", "password", "birthdate"]
 
 
 class TestClientCreateSchema:
-    """O que o schema (src/schemas/post_client.json) barra: 400 + QIT000001."""
 
     def test_refuses_empty_body(self):
         payload = {}
@@ -20,7 +19,6 @@ class TestClientCreateSchema:
 
     @pytest.mark.parametrize("missing_field", REQUIRED_FIELDS)
     def test_refuses_each_missing_required_field(self, missing_field):
-        """Um campo faltando por vez: cada um dos cinco e obrigatorio."""
         payload = PayloadGenerator.create_client_payload()
         del payload[missing_field]
 
@@ -30,13 +28,6 @@ class TestClientCreateSchema:
         assert response["code"] == "QIT000001"
 
     def test_schema_refuses_unknown_field(self):
-        """Campo que o schema nao pediu e erro, nao um campo ignorado.
-
-        Quem escreve `{"hllo": "mundo"}` com erro de digitacao prefere
-        receber um 400 agora a descobrir amanha que o campo nunca chegou.
-        Quem garante isso e o "additionalProperties": false do
-        src/schemas/post_client.json.
-        """
         payload = PayloadGenerator.create_client_payload()
         payload["campo_que_nao_existe"] = 1
 
@@ -45,19 +36,6 @@ class TestClientCreateSchema:
         assert response["code"] == "QIT000001"
 
     def test_schema_refuses_malformed_person_fields(self):
-        """Cada campo de pessoa tem um formato, e o schema cobra os tres.
-
-        Estao juntos num teste so porque sao a MESMA regra vista varias
-        vezes: um `pattern` no src/schemas/post_client.json. Cada volta do
-        laco derruba um deles e mantem os outros certos — assim, quando
-        este teste ficar vermelho, a mensagem diz qual formato parou de
-        ser cobrado.
-
-        O `pattern` nao e frescura: o `format` do JSON Schema ("email",
-        "date") NAO valida nada na biblioteca que este projeto usa. Ele e
-        so uma anotacao. Escrever "format": "email" e achar que esta
-        protegido e o erro que este teste existe pra impedir.
-        """
         campos_tortos = [
             ("email", "isto-nao-e-um-email"),
             ("email", "sem-arroba.com"),
@@ -111,7 +89,6 @@ class TestClientCreateSchema:
 
 
 class TestClientCreateBoundaries:
-    """Analise de valor limite: o ultimo valor aceito e o primeiro recusado de cada campo."""
 
     def test_name_length_limits(self):
         status, _response = RequestGenerator.POST_client(PayloadGenerator.create_client_payload(name="A"))
@@ -147,7 +124,6 @@ class TestClientCreateBoundaries:
         assert response["code"] == "QIT000001"
 
     def test_accepts_exactly_eighteen_years_today(self):
-        """Faz 18 anos hoje: a idade minima ja vale (limite aceito)."""
         payload = PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_turning_18_today())
 
         status, _response = RequestGenerator.POST_client(payload)
@@ -155,7 +131,6 @@ class TestClientCreateBoundaries:
         assert status == 201
 
     def test_refuses_who_turns_eighteen_tomorrow(self):
-        """Faz 18 anos amanha: um dia de diferenca decide (limite recusado)."""
         payload = PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_turning_18_tomorrow())
 
         status, response = RequestGenerator.POST_client(payload)
@@ -172,7 +147,6 @@ class TestClientCreateBoundaries:
         assert response["code"] in ("QIT001006", "QIT001007")
 
     def test_accepts_a_very_old_client(self):
-        """Nao existe idade maxima: quem tem 90 anos e cadastrado normalmente."""
         payload = PayloadGenerator.create_client_payload(birthdate="1930-01-01")
 
         status, _response = RequestGenerator.POST_client(payload)
@@ -180,12 +154,6 @@ class TestClientCreateBoundaries:
         assert status == 201
 
     def test_refuses_impossible_birthdate(self):
-        """Formato certo, data inexistente: 422, nunca 500.
-
-        O `pattern` do schema conta digitos; ele nao sabe que fevereiro
-        nao tem dia 30. Estas datas passam pelo regex inteiras, e quem as
-        recusa e o controller.
-        """
         for impossible_birthdate in ["9999-99-99", "2025-02-30", "2023-02-29", "2000-13-01", "2000-00-10", "0000-01-01"]:
             payload = PayloadGenerator.create_client_payload()
             payload["birthdate"] = impossible_birthdate
@@ -204,14 +172,6 @@ class TestClientCreateBoundaries:
 
 class TestClientCreateBusinessRules:
     def test_refuses_invalid_document_number(self):
-        """CPF com a mascara certa e os digitos errados nao passa.
-
-        O schema ja cobrou o FORMATO (tres pontos, um hifen, onze
-        digitos). Esta regra e outra: os dois ultimos digitos sao uma
-        conta feita sobre os nove primeiros, e um numero que erra essa
-        conta nao existe como CPF. Formato certo e valor impossivel — por
-        isso a resposta e 422, e nao 400.
-        """
         for invalid in ["111.222.333-44", "111.111.111-11", "000.000.000-00", "123.456.789-00"]:
             payload = PayloadGenerator.create_client_payload()
             payload["document_number"] = invalid
@@ -222,12 +182,10 @@ class TestClientCreateBusinessRules:
             assert response["code"] == "QIT001003"
 
     def test_accepts_a_known_valid_cpf(self):
-        """O CPF de teste conhecido (nao pertence a ninguem) passa na conta dos digitos."""
         payload = PayloadGenerator.create_client_payload(document_number="529.982.247-25")
 
         status, response = RequestGenerator.POST_client(payload)
 
-        # 409 tambem e prova de que o CPF foi aceito como valido numa rodada anterior
         assert status in (201, 409)
         if status == 409:
             assert response["code"] == "QIT001004"
@@ -269,11 +227,6 @@ class TestClientCreateBusinessRules:
         assert response["code"] == "QIT001005"
 
     def test_a_refused_signup_leaves_nothing_behind(self, operator_token):
-        """Recusa nao pode deixar meia entidade no banco.
-
-        Cada tentativa abaixo e recusada por um motivo diferente; depois,
-        o CPF de cada uma NAO pode ter virado cliente.
-        """
         existing = ObjectGenerator.create_client()
         attempts = [
             PayloadGenerator.create_client_payload(birthdate=PayloadGenerator.birthdate_turning_18_tomorrow()),
@@ -291,10 +244,6 @@ class TestClientCreateBusinessRules:
             assert response["data"] == [], f"a tentativa recusada deixou o CPF {payload['document_number']} cadastrado"
 
     def test_creates_client_approved_with_an_account(self, operator_token):
-        """Cadastro normal: o KYC e o antifraude aprovam e o cliente ja nasce aprovado, com conta.
-
-        A trilha mostra a historia inteira: pending (criacao) -> approved.
-        """
         client, jwt_token = ObjectGenerator.create_authenticated_client()
         _key = client["client_key"]
 
@@ -322,11 +271,6 @@ class TestClientCreateBusinessRules:
         assert all(event["event_datetime"] is not None for event in history.response_json["status_events"])
 
     def test_creates_client_rejected_when_kyc_refuses(self, operator_token):
-        """O KYC recusa a identidade (CPF com '99' no mock): o pedido NAO falha, o cliente nasce `rejected`.
-
-        E o mesmo desenho do "passar dos limites nao e erro, e outro
-        desfecho": 201, mas sem conta aberta.
-        """
         client = ObjectGenerator.create_rejected_client()
         token = ObjectGenerator.create_client_auth(client["document_number"], client["password"])["token"]
 
@@ -344,7 +288,6 @@ class TestClientCreateBusinessRules:
         assert [event["status"] for event in history.response_json["status_events"]] == ["pending", "rejected"]
 
     def test_creates_client_rejected_when_antifraud_refuses(self, operator_token):
-        """O KYC aprova mas o antifraude barra (e-mail com 'fraude' no mock): `rejected`, sem conta."""
         client = ObjectGenerator.create_client(email=f"fraude.{uuid4().hex[:8]}@exemplo.com.br")
 
         status, response = RequestGenerator.GET_client(client["client_key"], operator_token)
@@ -360,7 +303,6 @@ class TestClientCreateBusinessRules:
         assert list(response.keys()) == ["client_key"]
 
     def test_signup_needs_no_login(self):
-        """O cadastro e a unica rota de negocio aberta a quem ainda nao tem conta: sem Bearer."""
         status, _response = RequestGenerator.POST_client(PayloadGenerator.create_client_payload())
 
         assert status == 201
@@ -409,7 +351,6 @@ class TestClientCreateBusinessRules:
         assert status == 201
 
     def test_same_name_and_birthdate_are_allowed_for_different_people(self):
-        """Homonimos existem: so CPF e e-mail sao unicos."""
         for _ in range(2):
             status, _response = RequestGenerator.POST_client(
                 PayloadGenerator.create_client_payload(name="Joao Silva", birthdate="1985-03-03")

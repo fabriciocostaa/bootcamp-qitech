@@ -11,7 +11,6 @@ class AntifraudConnector(RestConnector):
         )
 
     def analyze_risk(self, cpf: str, email: str, ip_address: str):
-        # dados de contexto e comportamento
         return self.send(
             endpoint="/antifraud/analyze",
             method="POST",

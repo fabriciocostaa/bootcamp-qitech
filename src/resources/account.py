@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from controllers import AccountController
 from resources.client import DEFAULT_LIMIT, DEFAULT_PAGE
 from utils.schema_handler import SchemaHandler
-from errors import IdempotencyKeyMissing
+from errors import IdempotencyKeyMissing, InvalidParameter
 
 class AccountResource:
 
@@ -23,8 +23,10 @@ class AccountResource:
         controller = AccountController()
 
         idempotency_key = request.headers.get("Idempotency-Key")
-        if idempotency_key is None:
+        if not idempotency_key:
             raise IdempotencyKeyMissing()
+        if len(idempotency_key) > 255:
+            raise InvalidParameter("Idempotency-Key must have at most 255 characters.")
         account_dto = controller.deposit(account_key, payload["amount"], idempotency_key)
 
         return JSONResponse(
@@ -37,8 +39,10 @@ class AccountResource:
         controller = AccountController()
 
         idempotency_key = request.headers.get("Idempotency-Key")
-        if idempotency_key is None:
+        if not idempotency_key:
             raise IdempotencyKeyMissing()
+        if len(idempotency_key) > 255:
+            raise InvalidParameter("Idempotency-Key must have at most 255 characters.")
         
         account_dto = controller.withdraw(account_key, payload["amount"], idempotency_key)
 
@@ -52,8 +56,10 @@ class AccountResource:
         controller = AccountController()
 
         idempotency_key = request.headers.get("Idempotency-Key")
-        if idempotency_key is None:
+        if not idempotency_key:
             raise IdempotencyKeyMissing()
+        if len(idempotency_key) > 255:
+            raise InvalidParameter("Idempotency-Key must have at most 255 characters.")
         
         account_dto = controller.transfer(account_key, payload["account_to_key"], payload["amount"], idempotency_key)
 
